@@ -4,7 +4,6 @@ import debounce from "lodash/debounce";
 interface ImageOverlayProps {
   overlayColor?: string;
   overlayAlpha?: number;
-  contentPosition?: "top" | "center" | "bottom";
 }
 
 interface OverlayControls {
@@ -18,7 +17,6 @@ type OverlayMode = "degenify" | "higherify" | "wowowify";
 export default function ImageOverlay({
   overlayColor = "#000000",
   overlayAlpha = 0.5,
-  contentPosition = "center",
 }: ImageOverlayProps) {
   const [baseImage, setBaseImage] = useState<File | null>(null);
   const [overlayImage, setOverlayImage] = useState<File | null>(null);
@@ -37,7 +35,10 @@ export default function ImageOverlay({
     const file = e.target.files?.[0];
     if (file) {
       setBaseImage(file);
-      setBasePreviewUrl(URL.createObjectURL(file));
+      const url = URL.createObjectURL(file);
+      setBasePreviewUrl(url);
+      // Clean up previous URL if it exists
+      return () => URL.revokeObjectURL(url);
     }
   };
 
@@ -53,12 +54,16 @@ export default function ImageOverlay({
     if (presetPath) {
       try {
         const response = await fetch(presetPath);
+        if (!response.ok)
+          throw new Error(`HTTP error! status: ${response.status}`);
         const blob = await response.blob();
         const file = new File([blob], `${presetMode}.png`, {
           type: "image/png",
         });
         setOverlayImage(file);
-        setOverlayPreviewUrl(URL.createObjectURL(file));
+        const url = URL.createObjectURL(file);
+        setOverlayPreviewUrl(url);
+        return () => URL.revokeObjectURL(url);
       } catch (error) {
         console.error("Error loading preset overlay:", error);
       }
@@ -70,23 +75,26 @@ export default function ImageOverlay({
   ) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Convert SVG to PNG if necessary
-      if (file.type === "image/svg+xml") {
-        const svgUrl = URL.createObjectURL(file);
-        const img = new Image();
-        img.src = svgUrl;
-        await new Promise((resolve) => (img.onload = resolve));
+      try {
+        if (file.type === "image/svg+xml") {
+          const svgUrl = URL.createObjectURL(file);
+          const img = new Image();
+          img.src = svgUrl;
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+          });
 
-        const canvas = document.createElement("canvas");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) throw new Error("Could not get canvas context");
+
           ctx.drawImage(img, 0, 0);
-          const pngUrl = canvas.toDataURL("image/png");
-          setOverlayPreviewUrl(pngUrl);
+          URL.revokeObjectURL(svgUrl);
 
-          // Convert data URL to File
+          const pngUrl = canvas.toDataURL("image/png");
           const response = await fetch(pngUrl);
           const blob = await response.blob();
           const convertedFile = new File(
@@ -97,31 +105,41 @@ export default function ImageOverlay({
             }
           );
           setOverlayImage(convertedFile);
+          setOverlayPreviewUrl(pngUrl);
+        } else {
+          setOverlayImage(file);
+          const url = URL.createObjectURL(file);
+          setOverlayPreviewUrl(url);
+          return () => URL.revokeObjectURL(url);
         }
-        URL.revokeObjectURL(svgUrl);
-      } else {
-        setOverlayImage(file);
-        setOverlayPreviewUrl(URL.createObjectURL(file));
+      } catch (error) {
+        console.error("Error processing overlay image:", error);
       }
     }
   };
 
   // Debounced version of combineImages
-  const debouncedCombineImages = useCallback(
-    debounce(async () => {
+  const debouncedCombineImages = useCallback(() => {
+    const combineImages = async () => {
       if (!baseImage || !overlayImage || !canvasRef.current) return;
 
       const canvas = canvasRef.current;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      const baseImg = new Image();
-      const overlayImg = new Image();
+      const loadImage = (src: string): Promise<HTMLImageElement> => {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = src;
+        });
+      };
 
       try {
         // Load base image
-        baseImg.src = basePreviewUrl;
-        await new Promise((resolve) => (baseImg.onload = resolve));
+        const baseImg = await loadImage(basePreviewUrl);
 
         // Set canvas size to match base image
         canvas.width = baseImg.width;
@@ -139,8 +157,7 @@ export default function ImageOverlay({
         }
 
         // Load and draw overlay image
-        overlayImg.src = overlayPreviewUrl;
-        await new Promise((resolve) => (overlayImg.onload = resolve));
+        const overlayImg = await loadImage(overlayPreviewUrl);
 
         // Calculate scaled dimensions
         const scaledWidth = overlayImg.width * controls.scale;
@@ -158,33 +175,27 @@ export default function ImageOverlay({
       } catch (error) {
         console.error("Error combining images:", error);
       }
-    }, 16), // 60fps
-    [
-      baseImage,
-      overlayImage,
-      controls,
-      overlayColor,
-      overlayAlpha,
-      basePreviewUrl,
-      overlayPreviewUrl,
-    ]
-  );
-
-  useEffect(() => {
-    if (baseImage && overlayImage) {
-      debouncedCombineImages();
-    }
-    return () => {
-      debouncedCombineImages.cancel();
     };
+
+    const debouncedFn = debounce(combineImages, 16);
+    debouncedFn();
+    return () => debouncedFn.cancel();
   }, [
     baseImage,
     overlayImage,
     controls,
     overlayColor,
     overlayAlpha,
-    debouncedCombineImages,
+    basePreviewUrl,
+    overlayPreviewUrl,
   ]);
+
+  useEffect(() => {
+    if (baseImage && overlayImage) {
+      const cleanup = debouncedCombineImages();
+      return cleanup;
+    }
+  }, [baseImage, overlayImage, debouncedCombineImages]);
 
   const handleDownload = () => {
     if (!combinedPreviewUrl) return;
@@ -210,30 +221,21 @@ export default function ImageOverlay({
   return (
     <div className="flex flex-col items-center gap-4 p-4">
       <div className="w-full max-w-4xl">
-        <div className="text-center mb-4">
-          <label className="block text-lg font-medium text-gray-700 md:mb-2">
-            Image Overlays
+        <div className="text-center mb-8">
+          <label className="block text-lg font-medium text-gray-700 mb-4">
+            img overlay
           </label>
           {!baseImage && (
-            <div className="mt-2 flex justify-center">
-              <div className="w-full max-w-md relative group">
+            <div className="flex justify-center">
+              <label className="px-6 py-3 bg-violet-50 text-violet-700 rounded-full cursor-pointer hover:bg-violet-100 transition-colors font-semibold text-sm">
+                Choose File
                 <input
                   type="file"
                   accept="image/*"
                   onChange={handleBaseImageUpload}
-                  className="block w-full text-center text-sm text-gray-500 
-                    file:mr-4 file:py-2 file:px-4 
-                    md:file:py-3 md:file:px-6 
-                    file:rounded-full file:border-0 
-                    file:text-sm file:font-semibold 
-                    file:bg-violet-50 file:text-violet-700 
-                    hover:file:bg-violet-100
-                    file:transition-colors
-                    file:mx-auto
-                    cursor-pointer"
+                  className="hidden"
                 />
-                <div className="absolute inset-0 -z-10 bg-gradient-to-r from-violet-100 via-violet-50 to-emerald-50 opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
-              </div>
+              </label>
             </div>
           )}
         </div>
@@ -243,20 +245,17 @@ export default function ImageOverlay({
             {/* Left side: Preview */}
             <div className="flex-1">
               <div className="relative group">
-                {combinedPreviewUrl ? (
+                <div className="w-full h-[70vh] relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={combinedPreviewUrl}
-                    alt="Combined preview"
-                    className="w-full max-h-[70vh] object-contain border rounded-lg shadow-lg"
+                    src={combinedPreviewUrl || basePreviewUrl}
+                    alt={
+                      combinedPreviewUrl ? "Combined preview" : "Base preview"
+                    }
+                    className="w-full h-full object-contain border rounded-lg shadow-lg"
                   />
-                ) : (
-                  <img
-                    src={basePreviewUrl}
-                    alt="Base preview"
-                    className="w-full max-h-[70vh] object-contain border rounded-lg shadow-sm"
-                  />
-                )}
-                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all rounded-lg" />
+                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all rounded-lg" />
+                </div>
               </div>
             </div>
 
