@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg: #ffffff;
+  --color-text: #000000;
+  --color-degenify: #7c3aed;
+  --color-higherify: #059669;
+  --color-wowowify: #ffffff;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  cursor: none;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Smooth transitions */
+.transition-theme {
+  transition: all 0.3s ease;
+}
+
+/* Fun hover effects */
+button:hover {
+  transform: translateY(-2px);
+  transition: transform 0.2s ease;
+}
+
+/* Range input styling */
+input[type="range"] {
+  height: 4px;
+  appearance: none;
+  background: #e5e7eb;
+  border-radius: 2px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: currentColor;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* Hide cursor on touch devices */
+@media (hover: none) {
+  body {
+    cursor: auto;
+  }
+  .cursor {
+    display: none;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
