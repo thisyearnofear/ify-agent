@@ -15,6 +15,7 @@ interface OverlayControls {
 }
 
 type OverlayMode = "degenify" | "higherify" | "wowowify";
+type Stage = "initial" | "style" | "adjust";
 
 export default function ImageOverlay({
   overlayColor = "#000000",
@@ -37,6 +38,7 @@ export default function ImageOverlay({
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationPrompt, setGenerationPrompt] = useState("");
+  const [stage, setStage] = useState<Stage>("initial");
 
   const handleBaseImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -44,7 +46,7 @@ export default function ImageOverlay({
       setBaseImage(file);
       const url = URL.createObjectURL(file);
       setBasePreviewUrl(url);
-      // Clean up previous URL if it exists
+      setStage("style");
       return () => URL.revokeObjectURL(url);
     }
   };
@@ -70,6 +72,7 @@ export default function ImageOverlay({
         setOverlayImage(file);
         const url = URL.createObjectURL(file);
         setOverlayPreviewUrl(url);
+        setStage("adjust");
         return () => URL.revokeObjectURL(url);
       } catch (error) {
         console.error("Error loading preset overlay:", error);
@@ -204,19 +207,17 @@ export default function ImageOverlay({
     link.click();
   };
 
-  const handleReset = () => {
-    setBaseImage(null);
-    setOverlayImage(null);
-    setBasePreviewUrl("");
-    setOverlayPreviewUrl("");
-    setCombinedPreviewUrl("");
-    setControls({
-      scale: 1,
-      x: 0,
-      y: 0,
-      overlayColor: "#000000",
-      overlayAlpha: 0.5,
-    });
+  const handleBack = () => {
+    if (stage === "adjust") {
+      setOverlayImage(null);
+      setOverlayPreviewUrl("");
+      setStage("style");
+    } else if (stage === "style") {
+      setBaseImage(null);
+      setBasePreviewUrl("");
+      setCombinedPreviewUrl("");
+      setStage("initial");
+    }
   };
 
   const updateControl = (
@@ -231,29 +232,24 @@ export default function ImageOverlay({
 
     setIsGenerating(true);
     try {
-      const options = {
+      const response = await fetch("/api/generate", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${process.env.NEXT_PUBLIC_VENICE_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          hide_watermark: false,
-          model: "fluently-xl",
           prompt: generationPrompt,
-          width: 768,
-          height: 768,
+          model: "stable-diffusion-3.5",
         }),
-      };
+      });
 
-      const response = await fetch(
-        "https://api.venice.ai/api/v1/image/generate",
-        options
-      );
       const data = await response.json();
 
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to generate image");
+      }
+
       if (data.images?.[0]) {
-        // Convert base64 to blob
         const base64 = data.images[0];
         const byteCharacters = atob(base64);
         const byteNumbers = new Array(byteCharacters.length);
@@ -263,7 +259,6 @@ export default function ImageOverlay({
         const byteArray = new Uint8Array(byteNumbers);
         const blob = new Blob([byteArray], { type: "image/png" });
 
-        // Create file from blob
         const file = new File([blob], "generated-image.png", {
           type: "image/png",
         });
@@ -271,6 +266,7 @@ export default function ImageOverlay({
         const url = URL.createObjectURL(file);
         setBasePreviewUrl(url);
         setShowGenerateModal(false);
+        setStage("style");
       }
     } catch (error) {
       console.error("Error generating image:", error);
@@ -279,41 +275,82 @@ export default function ImageOverlay({
     }
   };
 
+  // Loading animation component (now more colorful and sequential)
+  const LoadingText = () => {
+    const colors = [
+      "text-violet-500",
+      "text-emerald-500",
+      "text-pink-500",
+      "text-blue-500",
+      "text-yellow-500",
+    ];
+
+    return (
+      <div className="flex items-center justify-center">
+        {Array.from("wowow").map((letter, i) => (
+          <span
+            key={i}
+            className={`inline-block transition-transform ${
+              colors[i % colors.length]
+            }`}
+            style={{
+              animationDelay: `${i * 0.1}s`,
+              animation: "bounce 0.5s infinite",
+            }}
+          >
+            {letter}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col items-center gap-4 p-4">
       <div className="w-full max-w-4xl">
         <div className="text-center mb-8">
-          <label className="block text-lg font-medium text-gray-700 mb-4">
-            img overlay
+          <label className="block text-lg font-medium text-gray-700">
+            {stage === "initial"
+              ? "img overlay"
+              : stage === "style"
+              ? "choose style"
+              : "adjust overlay"}
           </label>
-          {!baseImage && (
-            <div className="flex flex-col items-center gap-4">
-              <div className="flex items-center gap-4">
-                <label className="px-6 py-3 bg-violet-50 text-violet-700 rounded-full cursor-pointer hover:bg-violet-100 transition-colors font-semibold text-sm">
-                  Choose File
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleBaseImageUpload}
-                    className="hidden"
-                  />
-                </label>
-                <span className="text-gray-400">or</span>
-                <button
-                  onClick={() => setShowGenerateModal(true)}
-                  className="px-6 py-3 bg-gradient-to-r from-violet-500 to-emerald-500 text-white rounded-full hover:from-violet-600 hover:to-emerald-600 transition-all font-semibold text-sm inline-flex items-center gap-2"
-                >
-                  <span>✨</span>
-                  Generate
-                </button>
-              </div>
-            </div>
-          )}
         </div>
+
+        {stage === "initial" && (
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex items-center gap-4">
+              <label className="px-6 py-3 bg-violet-50 text-violet-700 rounded-full cursor-pointer hover:bg-violet-100 transition-colors font-semibold text-sm">
+                Choose File
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleBaseImageUpload}
+                  className="hidden"
+                />
+              </label>
+              <span className="text-gray-400">or</span>
+              <button
+                onClick={() => setShowGenerateModal(true)}
+                disabled={isGenerating}
+                className="px-6 py-3 bg-gradient-to-r from-violet-500 to-emerald-500 text-white rounded-full hover:from-violet-600 hover:to-emerald-600 transition-all font-semibold text-sm inline-flex items-center gap-2 min-w-[120px] justify-center"
+              >
+                {isGenerating ? (
+                  <LoadingText />
+                ) : (
+                  <>
+                    <span>✨</span>
+                    Generate
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
 
         {baseImage && (
           <div className="flex flex-col md:flex-row gap-4 md:gap-8">
-            {/* Left side: Preview */}
             <div className="flex-1">
               <div className="relative group">
                 <div className="w-full h-[70vh] relative">
@@ -330,15 +367,13 @@ export default function ImageOverlay({
               </div>
             </div>
 
-            {/* Right side: Controls */}
             <div className="w-full md:w-64 flex flex-col gap-4">
-              {!overlayImage ? (
+              {stage === "style" ? (
                 <div className="animate-fadeIn">
                   <h3 className="text-lg font-medium text-gray-900 mb-4 text-center">
                     Choose Style
                   </h3>
 
-                  {/* Background Color Controls */}
                   <div className="mb-6">
                     <h4 className="text-sm font-medium text-gray-700 mb-2">
                       Background
@@ -386,7 +421,6 @@ export default function ImageOverlay({
                     </div>
                   </div>
 
-                  {/* Existing Style Buttons */}
                   <div className="grid grid-cols-3 md:grid-cols-1 gap-2 md:gap-3">
                     <button
                       data-theme="degenify"
@@ -423,43 +457,22 @@ export default function ImageOverlay({
                     </button>
                   </div>
 
-                  {/* Generate Image Option */}
-                  <div className="mt-4 text-center">
+                  <div className="mt-6 text-center">
                     <button
-                      onClick={() => setShowGenerateModal(true)}
-                      className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-500 to-emerald-500 text-white rounded-lg hover:from-violet-600 hover:to-emerald-600 transition-all"
+                      onClick={() => {
+                        setBaseImage(null);
+                        setBasePreviewUrl("");
+                        setCombinedPreviewUrl("");
+                        setStage("initial");
+                      }}
+                      className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all flex items-center justify-center gap-2 mx-auto"
                     >
-                      <span>✨</span>
-                      <span>Generate Image</span>
+                      <span>←</span>
+                      <span>Start Over</span>
                     </button>
                   </div>
-
-                  {/* Wowowify Upload Option */}
-                  {mode === "wowowify" && (
-                    <div className="animate-fadeIn mt-4">
-                      <div className="relative">
-                        <label
-                          htmlFor="overlay-upload"
-                          className="block w-full p-4 text-center border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400 transition-colors"
-                        >
-                          <span className="text-2xl mb-2 block">📤</span>
-                          <span className="text-sm text-gray-600">
-                            Tap to upload overlay
-                          </span>
-                          <input
-                            id="overlay-upload"
-                            type="file"
-                            accept="image/png,image/svg+xml"
-                            onChange={handleOverlayImageUpload}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  )}
                 </div>
               ) : (
-                // Controls and actions
                 <div className="animate-fadeIn">
                   <div
                     className={`mb-4 md:mb-6 ${
@@ -520,7 +533,6 @@ export default function ImageOverlay({
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
                   <div className="flex gap-3 justify-center">
                     <button
                       onClick={handleDownload}
@@ -536,11 +548,11 @@ export default function ImageOverlay({
                       <span>⬇️</span>
                     </button>
                     <button
-                      onClick={handleReset}
+                      onClick={handleBack}
                       className="flex-1 p-2 md:px-6 md:py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all flex items-center justify-center gap-2"
                     >
-                      <span className="hidden md:inline">Start Over</span>
-                      <span>🔄</span>
+                      <span className="hidden md:inline">Back</span>
+                      <span>←</span>
                     </button>
                   </div>
                 </div>
@@ -550,48 +562,94 @@ export default function ImageOverlay({
         )}
       </div>
 
-      {/* Simplified Generate Image Modal */}
       {showGenerateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl p-6 max-w-md w-full">
             <div className="flex flex-col gap-6">
-              {/* Quick Prompts */}
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => {
-                    setGenerationPrompt("cyberpunk city landscape");
+                    const styles = [
+                      "surreal",
+                      "abstract",
+                      "fantasy",
+                      "isometric",
+                      "pop art",
+                      "sketch",
+                    ];
+                    const randomStyle =
+                      styles[Math.floor(Math.random() * styles.length)];
+                    setGenerationPrompt(
+                      `${randomStyle} style majestic mountain landscape with dramatic lighting`
+                    );
                     generateImage();
                   }}
                   className="p-3 bg-violet-50 text-violet-700 rounded-lg hover:bg-violet-100 transition-colors text-sm font-medium"
                 >
-                  Cyberpunk City
+                  Landscape
                 </button>
                 <button
                   onClick={() => {
-                    setGenerationPrompt("ethereal fantasy landscape");
+                    const styles = [
+                      "surreal",
+                      "abstract",
+                      "fantasy",
+                      "isometric",
+                      "pop art",
+                      "sketch",
+                    ];
+                    const randomStyle =
+                      styles[Math.floor(Math.random() * styles.length)];
+                    setGenerationPrompt(
+                      `${randomStyle} style wild animals in their natural habitat`
+                    );
                     generateImage();
                   }}
                   className="p-3 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors text-sm font-medium"
                 >
-                  Fantasy World
+                  Animals
                 </button>
                 <button
                   onClick={() => {
-                    setGenerationPrompt("abstract geometric patterns");
+                    const styles = [
+                      "surreal",
+                      "abstract",
+                      "fantasy",
+                      "isometric",
+                      "pop art",
+                      "sketch",
+                    ];
+                    const randomStyle =
+                      styles[Math.floor(Math.random() * styles.length)];
+                    setGenerationPrompt(
+                      `${randomStyle} style dynamic sports action moment`
+                    );
                     generateImage();
                   }}
                   className="p-3 bg-violet-50 text-violet-700 rounded-lg hover:bg-violet-100 transition-colors text-sm font-medium"
                 >
-                  Abstract Art
+                  Sports
                 </button>
                 <button
                   onClick={() => {
-                    setGenerationPrompt("futuristic technology concept");
+                    const styles = [
+                      "surreal",
+                      "abstract",
+                      "fantasy",
+                      "isometric",
+                      "pop art",
+                      "sketch",
+                    ];
+                    const randomStyle =
+                      styles[Math.floor(Math.random() * styles.length)];
+                    setGenerationPrompt(
+                      `${randomStyle} style lush rainforest with exotic flora`
+                    );
                     generateImage();
                   }}
                   className="p-3 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors text-sm font-medium"
                 >
-                  Tech Future
+                  Nature
                 </button>
               </div>
 
@@ -606,13 +664,13 @@ export default function ImageOverlay({
                 <button
                   onClick={generateImage}
                   disabled={isGenerating || !generationPrompt}
-                  className={`absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 rounded-md transition-colors ${
+                  className={`absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 rounded-md transition-colors min-w-[90px] flex justify-center ${
                     isGenerating || !generationPrompt
                       ? "bg-gray-200 text-gray-500"
                       : "bg-violet-600 text-white hover:bg-violet-700"
                   }`}
                 >
-                  {isGenerating ? "..." : "Generate"}
+                  {isGenerating ? <LoadingText /> : "Generate"}
                 </button>
               </div>
 
