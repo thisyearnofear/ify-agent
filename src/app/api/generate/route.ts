@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 
-export async function POST(request: Request) {
+export const runtime = "edge"; // Edge runtime for better performance
+
+export async function POST(req: Request) {
   try {
-    const { prompt } = await request.json();
+    const { prompt, model } = await req.json();
 
     if (!prompt) {
       return NextResponse.json(
@@ -11,36 +13,47 @@ export async function POST(request: Request) {
       );
     }
 
-    const options = {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.VENICE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        hide_watermark: false,
-        model: "fluently-xl",
-        prompt,
-        width: 768,
-        height: 768,
-      }),
-    };
-
-    const response = await fetch(
-      "https://api.venice.ai/api/v1/image/generate",
-      options
-    );
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(`Venice API error: ${data.error || response.statusText}`);
+    // Verify API key exists
+    const apiKey = process.env.VENICE_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "API key not configured" },
+        { status: 500 }
+      );
     }
 
+    // Call Venice API
+    const response = await fetch(
+      "https://api.venice.run/api/v1/images/generations",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          prompt,
+          model: model || "stable-diffusion-3.5",
+          n: 1,
+          size: "1024x1024",
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to generate image");
+    }
+
+    const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error generating image:", error);
+    console.error("Image generation error:", error);
     return NextResponse.json(
-      { error: "Failed to generate image" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to generate image",
+      },
       { status: 500 }
     );
   }
