@@ -10,6 +10,8 @@ interface OverlayControls {
   scale: number;
   x: number;
   y: number;
+  overlayColor: string;
+  overlayAlpha: number;
 }
 
 type OverlayMode = "degenify" | "higherify" | "wowowify";
@@ -28,8 +30,13 @@ export default function ImageOverlay({
     scale: 1,
     x: 0,
     y: 0,
+    overlayColor: "#000000",
+    overlayAlpha: 0.5,
   });
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationPrompt, setGenerationPrompt] = useState("");
 
   const handleBaseImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -149,9 +156,9 @@ export default function ImageOverlay({
         ctx.drawImage(baseImg, 0, 0);
 
         // Apply color overlay if needed
-        if (overlayAlpha > 0) {
-          ctx.fillStyle = overlayColor;
-          ctx.globalAlpha = overlayAlpha;
+        if (controls.overlayAlpha > 0) {
+          ctx.fillStyle = controls.overlayColor;
+          ctx.globalAlpha = controls.overlayAlpha;
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.globalAlpha = 1;
         }
@@ -180,15 +187,7 @@ export default function ImageOverlay({
     const debouncedFn = debounce(combineImages, 16);
     debouncedFn();
     return () => debouncedFn.cancel();
-  }, [
-    baseImage,
-    overlayImage,
-    controls,
-    overlayColor,
-    overlayAlpha,
-    basePreviewUrl,
-    overlayPreviewUrl,
-  ]);
+  }, [baseImage, overlayImage, controls, basePreviewUrl, overlayPreviewUrl]);
 
   useEffect(() => {
     if (baseImage && overlayImage) {
@@ -211,11 +210,73 @@ export default function ImageOverlay({
     setBasePreviewUrl("");
     setOverlayPreviewUrl("");
     setCombinedPreviewUrl("");
-    setControls({ scale: 1, x: 0, y: 0 });
+    setControls({
+      scale: 1,
+      x: 0,
+      y: 0,
+      overlayColor: "#000000",
+      overlayAlpha: 0.5,
+    });
   };
 
-  const updateControl = (key: keyof OverlayControls, value: number) => {
+  const updateControl = (
+    key: keyof OverlayControls,
+    value: number | string
+  ) => {
     setControls((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const generateImage = async () => {
+    if (!generationPrompt) return;
+
+    setIsGenerating(true);
+    try {
+      const options = {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_VENICE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          hide_watermark: false,
+          model: "fluently-xl",
+          prompt: generationPrompt,
+          width: 768,
+          height: 768,
+        }),
+      };
+
+      const response = await fetch(
+        "https://api.venice.ai/api/v1/image/generate",
+        options
+      );
+      const data = await response.json();
+
+      if (data.images?.[0]) {
+        // Convert base64 to blob
+        const base64 = data.images[0];
+        const byteCharacters = atob(base64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: "image/png" });
+
+        // Create file from blob
+        const file = new File([blob], "generated-image.png", {
+          type: "image/png",
+        });
+        setBaseImage(file);
+        const url = URL.createObjectURL(file);
+        setBasePreviewUrl(url);
+        setShowGenerateModal(false);
+      }
+    } catch (error) {
+      console.error("Error generating image:", error);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -226,16 +287,26 @@ export default function ImageOverlay({
             img overlay
           </label>
           {!baseImage && (
-            <div className="flex justify-center">
-              <label className="px-6 py-3 bg-violet-50 text-violet-700 rounded-full cursor-pointer hover:bg-violet-100 transition-colors font-semibold text-sm">
-                Choose File
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleBaseImageUpload}
-                  className="hidden"
-                />
-              </label>
+            <div className="flex flex-col items-center gap-4">
+              <div className="flex items-center gap-4">
+                <label className="px-6 py-3 bg-violet-50 text-violet-700 rounded-full cursor-pointer hover:bg-violet-100 transition-colors font-semibold text-sm">
+                  Choose File
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleBaseImageUpload}
+                    className="hidden"
+                  />
+                </label>
+                <span className="text-gray-400">or</span>
+                <button
+                  onClick={() => setShowGenerateModal(true)}
+                  className="px-6 py-3 bg-gradient-to-r from-violet-500 to-emerald-500 text-white rounded-full hover:from-violet-600 hover:to-emerald-600 transition-all font-semibold text-sm inline-flex items-center gap-2"
+                >
+                  <span>✨</span>
+                  Generate
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -262,11 +333,60 @@ export default function ImageOverlay({
             {/* Right side: Controls */}
             <div className="w-full md:w-64 flex flex-col gap-4">
               {!overlayImage ? (
-                // Style options
                 <div className="animate-fadeIn">
                   <h3 className="text-lg font-medium text-gray-900 mb-4 text-center">
                     Choose Style
                   </h3>
+
+                  {/* Background Color Controls */}
+                  <div className="mb-6">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">
+                      Background
+                    </h4>
+                    <div className="grid grid-cols-4 gap-2 mb-3">
+                      <button
+                        onClick={() => updateControl("overlayColor", "#000000")}
+                        className="w-8 h-8 rounded-full bg-black border-2 border-gray-200 hover:border-gray-400 transition-colors"
+                        aria-label="Black background"
+                      />
+                      <button
+                        onClick={() => updateControl("overlayColor", "#4F46E5")}
+                        className="w-8 h-8 rounded-full bg-violet-600 border-2 border-gray-200 hover:border-gray-400 transition-colors"
+                        aria-label="Purple background"
+                      />
+                      <button
+                        onClick={() => updateControl("overlayColor", "#059669")}
+                        className="w-8 h-8 rounded-full bg-emerald-600 border-2 border-gray-200 hover:border-gray-400 transition-colors"
+                        aria-label="Green background"
+                      />
+                      <button
+                        onClick={() => updateControl("overlayColor", "#FFFFFF")}
+                        className="w-8 h-8 rounded-full bg-white border-2 border-gray-200 hover:border-gray-400 transition-colors"
+                        aria-label="White background"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.1"
+                        value={controls.overlayAlpha}
+                        onChange={(e) =>
+                          updateControl(
+                            "overlayAlpha",
+                            parseFloat(e.target.value)
+                          )
+                        }
+                        className="w-full accent-current"
+                      />
+                      <span className="text-xs text-center">
+                        Opacity: {(controls.overlayAlpha * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Existing Style Buttons */}
                   <div className="grid grid-cols-3 md:grid-cols-1 gap-2 md:gap-3">
                     <button
                       data-theme="degenify"
@@ -300,6 +420,17 @@ export default function ImageOverlay({
                       <span className="text-xs md:text-base font-medium">
                         Wowowify
                       </span>
+                    </button>
+                  </div>
+
+                  {/* Generate Image Option */}
+                  <div className="mt-4 text-center">
+                    <button
+                      onClick={() => setShowGenerateModal(true)}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-500 to-emerald-500 text-white rounded-lg hover:from-violet-600 hover:to-emerald-600 transition-all"
+                    >
+                      <span>✨</span>
+                      <span>Generate Image</span>
                     </button>
                   </div>
 
@@ -418,6 +549,83 @@ export default function ImageOverlay({
           </div>
         )}
       </div>
+
+      {/* Simplified Generate Image Modal */}
+      {showGenerateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full">
+            <div className="flex flex-col gap-6">
+              {/* Quick Prompts */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    setGenerationPrompt("cyberpunk city landscape");
+                    generateImage();
+                  }}
+                  className="p-3 bg-violet-50 text-violet-700 rounded-lg hover:bg-violet-100 transition-colors text-sm font-medium"
+                >
+                  Cyberpunk City
+                </button>
+                <button
+                  onClick={() => {
+                    setGenerationPrompt("ethereal fantasy landscape");
+                    generateImage();
+                  }}
+                  className="p-3 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors text-sm font-medium"
+                >
+                  Fantasy World
+                </button>
+                <button
+                  onClick={() => {
+                    setGenerationPrompt("abstract geometric patterns");
+                    generateImage();
+                  }}
+                  className="p-3 bg-violet-50 text-violet-700 rounded-lg hover:bg-violet-100 transition-colors text-sm font-medium"
+                >
+                  Abstract Art
+                </button>
+                <button
+                  onClick={() => {
+                    setGenerationPrompt("futuristic technology concept");
+                    generateImage();
+                  }}
+                  className="p-3 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors text-sm font-medium"
+                >
+                  Tech Future
+                </button>
+              </div>
+
+              <div className="relative">
+                <input
+                  type="text"
+                  value={generationPrompt}
+                  onChange={(e) => setGenerationPrompt(e.target.value)}
+                  placeholder="Or describe your image..."
+                  className="w-full px-4 py-3 border rounded-lg pr-24"
+                />
+                <button
+                  onClick={generateImage}
+                  disabled={isGenerating || !generationPrompt}
+                  className={`absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 rounded-md transition-colors ${
+                    isGenerating || !generationPrompt
+                      ? "bg-gray-200 text-gray-500"
+                      : "bg-violet-600 text-white hover:bg-violet-700"
+                  }`}
+                >
+                  {isGenerating ? "..." : "Generate"}
+                </button>
+              </div>
+
+              <button
+                onClick={() => setShowGenerateModal(false)}
+                className="text-gray-500 hover:text-gray-700 transition-colors text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <canvas ref={canvasRef} className="hidden" />
     </div>
