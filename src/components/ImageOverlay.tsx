@@ -1,11 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import debounce from "lodash/debounce";
 
-interface ImageOverlayProps {
-  overlayColor?: string;
-  overlayAlpha?: number;
-}
-
 interface OverlayControls {
   scale: number;
   x: number;
@@ -17,10 +12,7 @@ interface OverlayControls {
 type OverlayMode = "degenify" | "higherify" | "wowowify";
 type Stage = "initial" | "style" | "adjust";
 
-export default function ImageOverlay({
-  overlayColor = "#000000",
-  overlayAlpha = 0.5,
-}: ImageOverlayProps) {
+export default function ImageOverlay() {
   const [baseImage, setBaseImage] = useState<File | null>(null);
   const [overlayImage, setOverlayImage] = useState<File | null>(null);
   const [basePreviewUrl, setBasePreviewUrl] = useState<string>("");
@@ -69,61 +61,49 @@ export default function ImageOverlay({
         const file = new File([blob], `${presetMode}.png`, {
           type: "image/png",
         });
-        setOverlayImage(file);
-        const url = URL.createObjectURL(file);
+
+        // Handle SVG conversion if needed
+        const handleOverlayFile = async (file: File) => {
+          if (file.type === "image/svg+xml") {
+            const svgUrl = URL.createObjectURL(file);
+            const img = new Image();
+            img.src = svgUrl;
+            await new Promise((resolve, reject) => {
+              img.onload = resolve;
+              img.onerror = reject;
+            });
+
+            const canvas = document.createElement("canvas");
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) throw new Error("Could not get canvas context");
+
+            ctx.drawImage(img, 0, 0);
+            URL.revokeObjectURL(svgUrl);
+
+            const pngUrl = canvas.toDataURL("image/png");
+            const response = await fetch(pngUrl);
+            const blob = await response.blob();
+            return new File(
+              [blob],
+              file.name.replace(/\.[^/.]+$/, "") + ".png",
+              {
+                type: "image/png",
+              }
+            );
+          }
+          return file;
+        };
+
+        const processedFile = await handleOverlayFile(file);
+        setOverlayImage(processedFile);
+        const url = URL.createObjectURL(processedFile);
         setOverlayPreviewUrl(url);
         setStage("adjust");
         return () => URL.revokeObjectURL(url);
       } catch (error) {
         console.error("Error loading preset overlay:", error);
-      }
-    }
-  };
-
-  const handleOverlayImageUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      try {
-        if (file.type === "image/svg+xml") {
-          const svgUrl = URL.createObjectURL(file);
-          const img = new Image();
-          img.src = svgUrl;
-          await new Promise((resolve, reject) => {
-            img.onload = resolve;
-            img.onerror = reject;
-          });
-
-          const canvas = document.createElement("canvas");
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) throw new Error("Could not get canvas context");
-
-          ctx.drawImage(img, 0, 0);
-          URL.revokeObjectURL(svgUrl);
-
-          const pngUrl = canvas.toDataURL("image/png");
-          const response = await fetch(pngUrl);
-          const blob = await response.blob();
-          const convertedFile = new File(
-            [blob],
-            file.name.replace(/\.[^/.]+$/, "") + ".png",
-            {
-              type: "image/png",
-            }
-          );
-          setOverlayImage(convertedFile);
-          setOverlayPreviewUrl(pngUrl);
-        } else {
-          setOverlayImage(file);
-          const url = URL.createObjectURL(file);
-          setOverlayPreviewUrl(url);
-          return () => URL.revokeObjectURL(url);
-        }
-      } catch (error) {
-        console.error("Error processing overlay image:", error);
       }
     }
   };
