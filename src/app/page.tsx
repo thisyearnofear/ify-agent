@@ -1,7 +1,6 @@
 "use client";
 
 import ImageOverlay from "@/components/ImageOverlay";
-import CustomCursor from "@/components/CustomCursor";
 import Image from "next/image";
 import Footer from "@/components/Footer";
 import Navigation from "@/components/Navigation";
@@ -9,7 +8,6 @@ import Navigation from "@/components/Navigation";
 export default function Home() {
   return (
     <>
-      <CustomCursor />
       <main className="min-h-screen">
         <Navigation />
         <div className="max-w-7xl mx-auto py-6 px-4">

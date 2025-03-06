@@ -4,6 +4,20 @@ import { useState } from "react";
 import Navigation from "@/components/Navigation";
 import Image from "next/image";
 
+// Loading indicator component
+const LoadingIndicator = () => (
+  <div className="flex flex-col items-center justify-center py-4">
+    <div className="relative w-16 h-16">
+      <div className="absolute top-0 left-0 w-full h-full border-4 border-blue-200 rounded-full"></div>
+      <div className="absolute top-0 left-0 w-full h-full border-4 border-transparent border-t-blue-500 rounded-full animate-spin"></div>
+    </div>
+    <div className="mt-4 text-center">
+      <p className="text-gray-700 font-medium">wowow in progress...</p>
+      <p className="text-gray-500 text-sm mt-1">This may take a few moments</p>
+    </div>
+  </div>
+);
+
 interface ParsedCommand {
   action: string;
   prompt?: string;
@@ -174,19 +188,19 @@ export default function AgentTest() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
           <div className="p-2 bg-white rounded border">
             <strong className="text-blue-600">Basic:</strong> &ldquo;higherify a
-            cat&rdquo; | &ldquo;degenify a mountain&rdquo;
+            cat&rdquo;
           </div>
           <div className="p-2 bg-white rounded border">
-            <strong className="text-blue-600">Position:</strong> &ldquo;Position
-            at 20, -30&rdquo; | &ldquo;Move to 0, 50&rdquo;
+            <strong className="text-blue-600">Placement:</strong>{" "}
+            &ldquo;Position at 20, -30&rdquo;
           </div>
           <div className="p-2 bg-white rounded border">
-            <strong className="text-blue-600">Scale:</strong> &ldquo;Scale to
-            0.5&rdquo; | &ldquo;Scale to 1.5&rdquo;
+            <strong className="text-blue-600">Size:</strong> &ldquo;Scale to
+            0.5&rdquo;
           </div>
           <div className="p-2 bg-white rounded border">
             <strong className="text-blue-600">Style:</strong> &ldquo;Color to
-            blue&rdquo; | &ldquo;Opacity to 0.7&rdquo;
+            #0000FF&rdquo;
           </div>
         </div>
         <div className="mt-4 p-3 bg-blue-50 rounded border border-blue-200 text-blue-800 text-sm">
@@ -200,8 +214,7 @@ export default function AgentTest() {
           results:
           <br />
           <span className="font-mono text-xs mt-1 block">
-            Higherify a cat wearing sunglasses. Scale to 0.5. Opacity to 0.3.
-            Color to blue.
+            Higherify a cat wearing sunglasses. Opacity to 0.3. Color to green.
           </span>
         </div>
       </div>
@@ -211,14 +224,26 @@ export default function AgentTest() {
           <label htmlFor="command" className="block text-sm font-medium mb-2">
             Try
           </label>
-          <input
-            type="text"
+          <textarea
             id="command"
             value={command}
             onChange={(e) => setCommand(e.target.value)}
             placeholder="e.g., Higherify a mountain landscape. Scale to 0.8."
-            className="w-full p-2 border rounded"
+            className="w-full p-2 border rounded resize-none overflow-hidden"
             required
+            rows={Math.min(5, Math.max(1, command.split("\n").length))}
+            style={{
+              minHeight: "42px",
+              maxHeight: "150px",
+              height: "auto",
+            }}
+            onInput={(e) => {
+              const target = e.target as HTMLTextAreaElement;
+              // Reset height to auto to get the correct scrollHeight
+              target.style.height = "auto";
+              // Set the height to the scrollHeight to expand the textarea
+              target.style.height = `${Math.min(150, target.scrollHeight)}px`;
+            }}
           />
         </div>
         <button
@@ -229,6 +254,12 @@ export default function AgentTest() {
           {loading ? "Processing..." : "wowow"}
         </button>
       </form>
+
+      {loading && (
+        <div className="p-4 mb-4 bg-white rounded border text-center">
+          <LoadingIndicator />
+        </div>
+      )}
 
       {error && (
         <div className="p-4 mb-4 bg-red-100 border border-red-400 text-red-700 rounded text-center">
