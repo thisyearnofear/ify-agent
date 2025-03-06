@@ -27,7 +27,11 @@ const redis = new Redis({
 });
 
 redis.on("error", (err: Error) => {
-  logger.error("Redis Rate Limiter Error:", err);
+  logger.error("Redis Rate Limiter Error:", {
+    message: err.message,
+    name: err.name,
+    stack: err.stack || "No stack trace",
+  });
 });
 
 redis.on("connect", () => {
@@ -68,7 +72,13 @@ export async function getRateLimitInfo(ip: string): Promise<RateLimitInfo> {
       remaining,
     };
   } catch (error) {
-    logger.error("Rate limit check failed", { error, ip });
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    logger.error("Rate limit check failed", {
+      errorMessage,
+      ip,
+      timestamp: new Date().toISOString(),
+    });
     // If Redis fails, allow the request but log the error
     return {
       isAllowed: true,

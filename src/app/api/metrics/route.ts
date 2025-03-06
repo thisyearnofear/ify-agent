@@ -1,18 +1,16 @@
 import { NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
-
-let totalRequests = 0;
-let failedRequests = 0;
-let lastReset = Date.now();
-
-// Reset counters every hour
-setInterval(() => {
-  totalRequests = 0;
-  failedRequests = 0;
-  lastReset = Date.now();
-}, 3600000);
+import { getMetrics } from "@/lib/metrics";
 
 export async function GET() {
+  const { totalRequests, failedRequests, lastReset } = getMetrics();
+
+  logger.info("Metrics requested", {
+    totalRequests,
+    failedRequests,
+    lastReset,
+  });
+
   const metrics = [
     "# HELP api_requests_total Total number of API requests",
     "# TYPE api_requests_total counter",
@@ -30,13 +28,4 @@ export async function GET() {
       "Content-Type": "text/plain",
     },
   });
-}
-
-// Export functions to update metrics
-export function incrementTotalRequests() {
-  totalRequests++;
-}
-
-export function incrementFailedRequests() {
-  failedRequests++;
 }

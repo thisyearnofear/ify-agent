@@ -2,12 +2,15 @@ import { NextResponse } from "next/server";
 import { getRateLimitInfo } from "@/lib/rate-limiter";
 import { logger } from "@/lib/logger";
 import { headers } from "next/headers";
+import { incrementTotalRequests, incrementFailedRequests } from "@/lib/metrics";
 
 const ALLOWED_MODELS = ["stable-diffusion-3.5", "fluently-xl"];
 const DEFAULT_MODEL = "fluently-xl";
 
 export async function POST(request: Request) {
   try {
+    incrementTotalRequests();
+
     // Get client IP
     const headersList = await headers();
     const ip =
@@ -27,6 +30,7 @@ export async function POST(request: Request) {
 
     if (!rateLimitInfo.isAllowed) {
       logger.warn("Rate limit exceeded", { ip });
+      incrementFailedRequests();
       return NextResponse.json(
         {
           error: `Rate limit exceeded. Try again in ${rateLimitInfo.timeToReset} seconds`,
@@ -41,6 +45,7 @@ export async function POST(request: Request) {
     // Input validation
     if (!process.env.VENICE_API_KEY) {
       logger.error("VENICE_API_KEY is not configured");
+      incrementFailedRequests();
       return NextResponse.json(
         { error: "Server configuration error" },
         { status: 500 }
@@ -52,6 +57,7 @@ export async function POST(request: Request) {
 
     if (!prompt) {
       logger.warn("Missing prompt in request", { ip });
+      incrementFailedRequests();
       return NextResponse.json(
         { error: "Prompt is required" },
         { status: 400, headers: responseHeaders }
@@ -60,6 +66,7 @@ export async function POST(request: Request) {
 
     if (!ALLOWED_MODELS.includes(model)) {
       logger.warn("Invalid model requested", { ip, model });
+      incrementFailedRequests();
       return NextResponse.json(
         {
           error: `Invalid model. Allowed models are: ${ALLOWED_MODELS.join(
@@ -120,6 +127,7 @@ export async function POST(request: Request) {
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         logger.error("Request timeout", { ip });
+        incrementFailedRequests();
         return NextResponse.json(
           { error: "Request timed out" },
           { status: 504, headers: responseHeaders }
@@ -131,6 +139,7 @@ export async function POST(request: Request) {
     logger.error("Error generating image", {
       error: error instanceof Error ? error.message : "Unknown error",
     });
+    incrementFailedRequests();
 
     const errorMessage =
       process.env.NODE_ENV === "development"

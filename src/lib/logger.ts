@@ -1,10 +1,14 @@
 type LogLevel = "info" | "warn" | "error";
 
+interface LogMetadata {
+  [key: string]: string | number | boolean | null | undefined;
+}
+
 interface LogEntry {
   timestamp: string;
   level: LogLevel;
   message: string;
-  data?: any;
+  data?: LogMetadata;
 }
 
 class Logger {
@@ -21,7 +25,7 @@ class Logger {
     return Logger.instance;
   }
 
-  private addLog(level: LogLevel, message: string, data?: any) {
+  private addLog(level: LogLevel, message: string, data?: LogMetadata) {
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
       level,
@@ -42,15 +46,15 @@ class Logger {
     }
   }
 
-  info(message: string, data?: any) {
+  info(message: string, data?: LogMetadata) {
     this.addLog("info", message, data);
   }
 
-  warn(message: string, data?: any) {
+  warn(message: string, data?: LogMetadata) {
     this.addLog("warn", message, data);
   }
 
-  error(message: string, data?: any) {
+  error(message: string, data?: LogMetadata) {
     this.addLog("error", message, data);
   }
 
