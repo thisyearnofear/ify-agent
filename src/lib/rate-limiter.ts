@@ -4,42 +4,29 @@ import { logger } from "./logger";
 const RATE_LIMIT_WINDOW = 3600; // 1 hour in seconds
 const MAX_REQUESTS = 20; // Maximum requests per window
 
-const url = new URL(process.env.REDIS_URL || "");
-const redis = new Redis({
-  host: url.hostname,
-  port: parseInt(url.port),
-  username: "default",
-  password: url.password,
-  lazyConnect: true,
-  retryStrategy(times: number): number {
+if (!process.env.REDIS_URL) {
+  throw new Error("REDIS_URL is not configured");
+}
+
+// Configure Redis with TLS for Upstash in production
+const redis = new Redis(process.env.REDIS_URL, {
+  tls: process.env.NODE_ENV === "production" ? {} : undefined,
+  maxRetriesPerRequest: 3,
+  retryStrategy(times) {
     const delay = Math.min(times * 50, 2000);
+    logger.info("Redis retry", { times, delay });
     return delay;
-  },
-  maxRetriesPerRequest: 5,
-  enableOfflineQueue: true,
-  reconnectOnError(err) {
-    const targetError = "READONLY";
-    if (err.message.includes(targetError)) {
-      return true;
-    }
-    return false;
   },
 });
 
-redis.on("error", (err: Error) => {
-  logger.error("Redis Rate Limiter Error:", {
-    message: err.message,
-    name: err.name,
-    stack: err.stack || "No stack trace",
+redis.on("error", (error) => {
+  logger.error("Redis connection error", {
+    error: error instanceof Error ? error.message : "Unknown error",
   });
 });
 
 redis.on("connect", () => {
-  logger.info("Redis Rate Limiter connected");
-});
-
-redis.on("reconnecting", () => {
-  logger.warn("Redis Rate Limiter reconnecting");
+  logger.info("Redis connected successfully");
 });
 
 export interface RateLimitInfo {
@@ -52,14 +39,16 @@ export async function getRateLimitInfo(ip: string): Promise<RateLimitInfo> {
   const key = `rate_limit:${ip}`;
 
   try {
-    // Get the current count and TTL
-    const [count, ttl] = await Promise.all([redis.incr(key), redis.ttl(key)]);
+    // Get the current count
+    const count = await redis.incr(key);
 
     // If this is the first request, set expiry
     if (count === 1) {
       await redis.expire(key, RATE_LIMIT_WINDOW);
     }
 
+    // Get TTL
+    const ttl = await redis.ttl(key);
     const timeToReset = ttl < 0 ? RATE_LIMIT_WINDOW : ttl;
     const isAllowed = count <= MAX_REQUESTS;
     const remaining = Math.max(0, MAX_REQUESTS - count);
