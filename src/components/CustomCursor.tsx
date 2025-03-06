@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export default function CustomCursor() {
   const cursorRef = useRef<HTMLDivElement>(null);
   const cursorIconRef = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     const cursor = cursorRef.current;
@@ -17,7 +18,23 @@ export default function CustomCursor() {
       mouseX = e.clientX;
       mouseY = e.clientY;
 
-      cursor.style.opacity = "1";
+      // Only show custom cursor on interactive elements
+      const target = e.target;
+      if (!(target instanceof Element)) return;
+
+      if (
+        target.closest('[data-theme="degenify"]') ||
+        target.closest('[data-theme="higherify"]') ||
+        target.closest('[data-theme="scrollify"]') ||
+        target.closest('[data-theme="wowowify"]')
+      ) {
+        setIsVisible(true);
+        cursor.style.opacity = "1";
+      } else {
+        setIsVisible(false);
+        cursor.style.opacity = "0";
+      }
+
       cursor.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0)`;
     };
 
@@ -30,27 +47,28 @@ export default function CustomCursor() {
         cursorIcon.textContent = "🎩";
         cursorIcon.style.color = "#7C3AED"; // violet-600
         cursor.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0) scale(1.2)`;
+        setIsVisible(true);
+        cursor.style.opacity = "1";
       } else if (target.closest('[data-theme="higherify"]')) {
         cursorIcon.textContent = "↑";
         cursorIcon.style.color = "#059669"; // emerald-600
         cursor.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0) scale(1.2)`;
+        setIsVisible(true);
+        cursor.style.opacity = "1";
       } else if (target.closest('[data-theme="scrollify"]')) {
         cursorIcon.textContent = "📜";
         cursorIcon.style.color = "#D97706"; // amber-600
         cursor.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0) scale(1.2)`;
+        setIsVisible(true);
+        cursor.style.opacity = "1";
       } else if (target.closest('[data-theme="wowowify"]')) {
         cursorIcon.textContent = "🤯";
         cursor.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0) scale(1.2)`;
-      } else if (
-        target.closest("button") ||
-        target.closest("a") ||
-        target.closest("input")
-      ) {
-        cursorIcon.textContent = "+";
-        cursor.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0) scale(1.2)`;
+        setIsVisible(true);
+        cursor.style.opacity = "1";
       } else {
-        cursorIcon.textContent = "•";
-        cursor.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0) scale(1)`;
+        setIsVisible(false);
+        cursor.style.opacity = "0";
       }
     };
 
@@ -58,6 +76,8 @@ export default function CustomCursor() {
       cursorIcon.textContent = "•";
       cursorIcon.style.color = "currentColor";
       cursor.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0) scale(1)`;
+      setIsVisible(false);
+      cursor.style.opacity = "0";
     };
 
     window.addEventListener("mousemove", onMouseMove);
@@ -74,7 +94,10 @@ export default function CustomCursor() {
   return (
     <div
       ref={cursorRef}
-      className="cursor fixed top-0 left-0 pointer-events-none z-50 opacity-0 mix-blend-difference transition-transform duration-150"
+      className={`cursor fixed top-0 left-0 pointer-events-none z-50 opacity-0 mix-blend-difference transition-transform duration-150 ${
+        !isVisible ? "!cursor-auto" : ""
+      }`}
+      style={{ display: isVisible ? "block" : "none" }}
     >
       <div
         ref={cursorIconRef}
