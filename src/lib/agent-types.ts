@@ -5,7 +5,7 @@ export interface AgentCommand {
   parameters?: {
     baseImageUrl?: string;
     prompt?: string;
-    overlayMode?: OverlayMode;
+    overlayMode?: OverlayMode | "lensify";
     action?: "generate" | "overlay" | "adjust" | "download";
     controls?: {
       scale?: number;
@@ -24,12 +24,14 @@ export interface AgentResponse {
   resultUrl?: string;
   previewUrl?: string;
   error?: string;
+  groveUri?: string;
+  groveUrl?: string;
 }
 
 export interface ParsedCommand {
   action: "generate" | "overlay" | "adjust" | "download";
   prompt?: string;
-  overlayMode?: OverlayMode;
+  overlayMode?: OverlayMode | "lensify";
   baseImageUrl?: string;
   controls?: {
     scale?: number;

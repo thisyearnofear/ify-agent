@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
-import { AgentCommand, AgentResponse } from "@/lib/agent-types";
+import { AgentResponse, ParsedCommand } from "@/lib/agent-types";
 import { parseCommand } from "@/lib/command-parser";
 import { logger } from "@/lib/logger";
 import { v4 as uuidv4 } from "uuid";
 import { getRateLimitInfo } from "@/lib/rate-limiter";
-import { incrementTotalRequests, incrementFailedRequests } from "@/lib/metrics";
+import {
+  incrementTotalRequests,
+  incrementFailedRequests,
+  storeImageUrl,
+} from "@/lib/metrics";
 import { createCanvas, loadImage } from "canvas";
 import { storeImage } from "@/lib/image-store";
+import { uploadToGrove } from "@/lib/grove-storage";
 
 // Mark the route as dynamic to prevent static optimization
 export const dynamic = "force-dynamic";
@@ -16,9 +21,22 @@ const TIMEOUT_MS = 25000; // 25 seconds
 
 // For serverless environment, we'll use these URLs for overlays
 const OVERLAY_URLS = {
-  degenify: "https://wowowifyer.vercel.app/degen/degenify.png",
-  higherify: "https://wowowifyer.vercel.app/higher/arrows/Arrow-png-white.png",
-  scrollify: "https://wowowifyer.vercel.app/scroll/scrollify.png",
+  degenify:
+    process.env.NODE_ENV === "production"
+      ? "https://wowowifyer.vercel.app/degen/degenify.png"
+      : "/degen/degenify.png",
+  higherify:
+    process.env.NODE_ENV === "production"
+      ? "https://wowowifyer.vercel.app/higher/arrows/Arrow-png-white.png"
+      : "/higher/arrows/Arrow-png-white.png",
+  scrollify:
+    process.env.NODE_ENV === "production"
+      ? "https://wowowifyer.vercel.app/scroll/scrollify.png"
+      : "/scroll/scrollify.png",
+  lensify:
+    process.env.NODE_ENV === "production"
+      ? "https://wowowifyer.vercel.app/lens/lensify.png"
+      : "/lens/lensify.png",
 };
 
 export async function POST(request: Request): Promise<Response> {
@@ -58,37 +76,52 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    // Parse request body
-    let body: AgentCommand;
-    try {
-      body = await request.json();
-    } catch (error) {
-      logger.warn("Invalid JSON in request body", {
-        ip,
-        error: error instanceof Error ? error.message : "Unknown parsing error",
-      });
-      incrementFailedRequests();
-      return NextResponse.json(
-        { error: "Invalid request body" },
-        { status: 400, headers: responseHeaders }
-      );
-    }
-
-    // Validate request
-    if (!body.command) {
-      logger.warn("Missing command in request", { ip });
-      incrementFailedRequests();
-      return NextResponse.json(
-        { error: "Command is required" },
-        { status: 400, headers: responseHeaders }
-      );
-    }
-
     // Generate a unique ID for this request
-    const id = uuidv4();
+    const requestId = uuidv4();
+
+    // Get base URL for constructing image URLs
+    const baseUrl = request.headers.get("x-forwarded-proto")
+      ? `${request.headers.get("x-forwarded-proto")}://${request.headers.get(
+          "x-forwarded-host"
+        )}`
+      : "";
+
+    // Parse the request body
+    const body = await request.json();
+    const command = body.command as string;
+    const providedParameters = body.parameters;
+
+    // Check if wallet address is provided for lensify overlay
+    const walletAddress = body.walletAddress as string;
 
     // Parse the command
-    const parsedCommand = parseCommand(body.command);
+    let parsedCommand: ParsedCommand;
+    if (providedParameters) {
+      parsedCommand = providedParameters as ParsedCommand;
+    } else if (!command) {
+      return NextResponse.json(
+        { error: "No command or parameters provided" },
+        { status: 400 }
+      );
+    } else {
+      parsedCommand = parseCommand(command);
+    }
+
+    // Check if lensify overlay is requested but no wallet address is provided
+    if (parsedCommand.overlayMode === "lensify" && !walletAddress) {
+      logger.warn("Lensify overlay requested without wallet connection", {
+        ip,
+        requestId,
+      });
+      return NextResponse.json(
+        {
+          error: "Wallet connection required for lensify overlay",
+          status: "failed",
+          id: requestId,
+        },
+        { status: 403 }
+      );
+    }
 
     // Override with explicit parameters if provided
     if (body.parameters) {
@@ -103,7 +136,8 @@ export async function POST(request: Request): Promise<Response> {
         if (
           body.parameters.overlayMode === "degenify" ||
           body.parameters.overlayMode === "higherify" ||
-          body.parameters.overlayMode === "scrollify"
+          body.parameters.overlayMode === "scrollify" ||
+          body.parameters.overlayMode === "lensify"
         ) {
           parsedCommand.overlayMode = body.parameters.overlayMode;
         } else {
@@ -113,7 +147,7 @@ export async function POST(request: Request): Promise<Response> {
           });
           return NextResponse.json(
             {
-              error: `Invalid overlay mode: ${body.parameters.overlayMode}. Supported modes are: degenify, higherify, scrollify.`,
+              error: `Invalid overlay mode: ${body.parameters.overlayMode}. Supported modes are: degenify, higherify, scrollify, lensify.`,
             },
             { status: 400, headers: responseHeaders }
           );
@@ -136,7 +170,8 @@ export async function POST(request: Request): Promise<Response> {
       parsedCommand.overlayMode &&
       parsedCommand.overlayMode !== "degenify" &&
       parsedCommand.overlayMode !== "higherify" &&
-      parsedCommand.overlayMode !== "scrollify"
+      parsedCommand.overlayMode !== "scrollify" &&
+      parsedCommand.overlayMode !== "lensify"
     ) {
       logger.warn("Invalid overlay mode", {
         overlayMode: parsedCommand.overlayMode,
@@ -144,7 +179,7 @@ export async function POST(request: Request): Promise<Response> {
       });
       return NextResponse.json(
         {
-          error: `Invalid overlay mode: ${parsedCommand.overlayMode}. Supported modes are: degenify, higherify, scrollify.`,
+          error: `Invalid overlay mode: ${parsedCommand.overlayMode}. Supported modes are: degenify, higherify, scrollify, lensify.`,
         },
         { status: 400, headers: responseHeaders }
       );
@@ -152,7 +187,7 @@ export async function POST(request: Request): Promise<Response> {
 
     try {
       logger.info("Processing agent command", {
-        id,
+        requestId,
         action: parsedCommand.action,
         ip,
       });
@@ -234,6 +269,66 @@ export async function POST(request: Request): Promise<Response> {
           });
           throw error;
         }
+      } else if (parsedCommand.overlayMode) {
+        // If an overlay is requested but no prompt or base image is provided,
+        // generate a default image based on the overlay type
+        try {
+          // Validate API configuration
+          if (!process.env.VENICE_API_KEY) {
+            logger.error("VENICE_API_KEY is not configured");
+            throw new Error("Server configuration error");
+          }
+
+          // Create a default prompt based on the overlay type
+          let defaultPrompt = "a simple background";
+          if (parsedCommand.overlayMode === "higherify") {
+            defaultPrompt = "a mountain landscape with clear sky";
+          } else if (parsedCommand.overlayMode === "degenify") {
+            defaultPrompt = "a colorful abstract pattern";
+          } else if (parsedCommand.overlayMode === "scrollify") {
+            defaultPrompt = "a minimalist tech background";
+          } else if (parsedCommand.overlayMode === "lensify") {
+            defaultPrompt = "a professional photography background";
+          }
+
+          logger.info("Generating default image for overlay", {
+            overlayMode: parsedCommand.overlayMode,
+            defaultPrompt,
+          });
+
+          const veniceResponse = await fetch(
+            "https://api.venice.ai/api/v1/image/generate",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${process.env.VENICE_API_KEY}`,
+              },
+              body: JSON.stringify({
+                prompt: defaultPrompt,
+                model: "stable-diffusion-3.5",
+                hide_watermark: true,
+                width: 512,
+                height: 512,
+              }),
+              signal: controller.signal,
+            }
+          );
+
+          if (!veniceResponse.ok) {
+            throw new Error(`Venice API error: ${veniceResponse.statusText}`);
+          }
+
+          const veniceData = await veniceResponse.json();
+          const imageBase64 = veniceData.images[0];
+          baseImageBuffer = Buffer.from(imageBase64, "base64");
+        } catch (error) {
+          logger.error("Error generating default image", {
+            error: error instanceof Error ? error.message : "Unknown error",
+            overlayMode: parsedCommand.overlayMode,
+          });
+          throw new Error("Failed to generate default image for overlay");
+        }
       } else {
         throw new Error("No base image URL or prompt provided");
       }
@@ -280,16 +375,24 @@ export async function POST(request: Request): Promise<Response> {
             );
           }
 
+          // Handle relative URLs for local development
+          const fullOverlayUrl = overlayUrl.startsWith("/")
+            ? `${baseUrl}${overlayUrl}`
+            : overlayUrl;
+
+          logger.info("Fetching overlay", { url: fullOverlayUrl });
+
           try {
-            // Download the overlay image
-            const overlayResponse = await fetch(overlayUrl, {
+            const overlayResponse = await fetch(fullOverlayUrl, {
               signal: controller.signal,
             });
+
             if (!overlayResponse.ok) {
               throw new Error(
                 `Failed to download overlay: ${overlayResponse.statusText}`
               );
             }
+
             const overlayArrayBuffer = await overlayResponse.arrayBuffer();
             const overlayBuffer = Buffer.from(overlayArrayBuffer);
             const overlayImage = await loadImage(overlayBuffer);
@@ -349,16 +452,62 @@ export async function POST(request: Request): Promise<Response> {
         // Get preview buffer
         const previewBuffer = previewCanvas.toBuffer("image/png");
 
-        // Store images in memory
-        storeImage(resultId, resultBuffer);
-        storeImage(previewId, previewBuffer);
+        // Store the image in memory
+        storeImage(resultId, resultBuffer, "image/png");
+        storeImage(previewId, previewBuffer, "image/png");
 
-        // Construct the response
+        // Create result URLs
+        const resultUrl = `${baseUrl}/api/image?id=${resultId}`;
+        const previewUrl = `${baseUrl}/api/image?id=${previewId}`;
+
+        // If this is a lensify overlay, store in Grove
+        let groveUri, groveUrl;
+        if (parsedCommand.overlayMode === "lensify" && resultBuffer) {
+          logger.info("Storing lensify image in Grove");
+          try {
+            const fileName = `lensify-${resultId}.png`;
+            // Pass the wallet address to Grove if available
+            const groveResult = await uploadToGrove(
+              resultBuffer,
+              fileName,
+              walletAddress // Pass the wallet address for ACL
+            );
+
+            // Only set the Grove URI and URL if they're not empty
+            if (groveResult.uri && groveResult.gatewayUrl) {
+              groveUri = groveResult.uri;
+              groveUrl = groveResult.gatewayUrl;
+              logger.info("Successfully stored image in Grove", {
+                groveUri,
+                groveUrl,
+                walletAddress: walletAddress || "none",
+              });
+            } else {
+              logger.warn("Grove storage returned empty URI or URL", {
+                uri: groveResult.uri,
+                gatewayUrl: groveResult.gatewayUrl,
+                walletAddress: walletAddress || "none",
+              });
+            }
+          } catch (error) {
+            logger.error("Failed to store image in Grove", {
+              error: error instanceof Error ? error.message : String(error),
+              walletAddress: walletAddress || "none",
+            });
+          }
+        }
+
+        // Store the image URL in history
+        await storeImageUrl(requestId, resultUrl, groveUri, groveUrl);
+
+        // Return the response
         const response: AgentResponse = {
-          id,
+          id: requestId,
           status: "completed",
-          resultUrl: `/api/image?id=${resultId}`,
-          previewUrl: `/api/image?id=${previewId}`,
+          resultUrl,
+          previewUrl,
+          groveUri,
+          groveUrl,
         };
 
         return NextResponse.json(response, {
@@ -374,7 +523,7 @@ export async function POST(request: Request): Promise<Response> {
       }
     } catch (error) {
       logger.error("Error processing command", {
-        id,
+        requestId,
         error: error instanceof Error ? error.message : "Unknown error",
         stack: error instanceof Error ? error.stack : undefined,
         ip,
@@ -383,7 +532,7 @@ export async function POST(request: Request): Promise<Response> {
 
       return NextResponse.json(
         {
-          id,
+          id: requestId,
           status: "failed",
           error: error instanceof Error ? error.message : "Unknown error",
         },

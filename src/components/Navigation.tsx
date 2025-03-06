@@ -31,6 +31,16 @@ export default function Navigation() {
             >
               Agent
             </Link>
+            <Link
+              href="/admin"
+              className={`inline-flex items-center px-4 pt-1 border-b-2 text-sm font-medium ${
+                pathname === "/admin"
+                  ? "border-indigo-500 text-gray-900"
+                  : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
+              }`}
+            >
+              Grove
+            </Link>
           </div>
         </div>
       </div>

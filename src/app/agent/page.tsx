@@ -3,6 +3,9 @@
 import { useState } from "react";
 import Navigation from "@/components/Navigation";
 import Image from "next/image";
+import { Web3Provider } from "@/components/Web3Provider";
+import WalletConnect from "@/components/WalletConnect";
+import { useAccount } from "wagmi";
 
 // Loading indicator component
 const LoadingIndicator = () => (
@@ -37,9 +40,12 @@ interface CommandResult {
   resultUrl?: string;
   previewUrl?: string;
   error?: string;
+  groveUri?: string;
+  groveUrl?: string;
 }
 
-export default function AgentTest() {
+// Main component wrapped with Web3Provider
+function AgentContent() {
   const [command, setCommand] = useState("");
   const [result, setResult] = useState<CommandResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -48,6 +54,8 @@ export default function AgentTest() {
     null
   );
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [walletRequired, setWalletRequired] = useState(false);
+  const { isConnected, address } = useAccount();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +63,7 @@ export default function AgentTest() {
     setError("");
     setParsedCommand(null);
     setShowConfirmation(false);
+    setWalletRequired(false);
 
     try {
       // First, get the parsed command for confirmation
@@ -70,6 +79,13 @@ export default function AgentTest() {
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to parse command");
+      }
+
+      // Check if the command requires a wallet connection (lensify)
+      if (data.overlayMode === "lensify" && !isConnected) {
+        setWalletRequired(true);
+        setLoading(false);
+        return;
       }
 
       setParsedCommand(data);
@@ -92,15 +108,27 @@ export default function AgentTest() {
         parsedCommand,
       });
 
+      // Include wallet address in the request if connected
+      const requestBody: {
+        command: string;
+        parameters: ParsedCommand | null;
+        walletAddress?: string;
+      } = {
+        command,
+        parameters: parsedCommand,
+      };
+
+      // Add wallet address if connected and using lensify
+      if (isConnected && parsedCommand?.overlayMode === "lensify") {
+        requestBody.walletAddress = address;
+      }
+
       const response = await fetch("/api/agent", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          command,
-          parameters: parsedCommand,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       // Check if the response is ok before trying to parse JSON
@@ -172,7 +200,11 @@ export default function AgentTest() {
     <div className="container mx-auto p-4 max-w-3xl">
       <Navigation />
 
-      <div className="flex flex-col items-center gap-4 mb-6">
+      <div className="flex justify-center mb-4">
+        <WalletConnect />
+      </div>
+
+      <div className="flex justify-center mb-6">
         <Image
           src="/wowwowowify.png"
           alt="WOWOWIFY"
@@ -181,42 +213,6 @@ export default function AgentTest() {
           className="w-32 h-auto"
           priority
         />
-      </div>
-
-      <div className="mb-8 p-4 bg-gray-50 rounded border text-center">
-        <h2 className="text-lg font-semibold mb-3">How</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-          <div className="p-2 bg-white rounded border">
-            <strong className="text-blue-600">Basic:</strong> &ldquo;higherify a
-            cat&rdquo;
-          </div>
-          <div className="p-2 bg-white rounded border">
-            <strong className="text-blue-600">Placement:</strong>{" "}
-            &ldquo;Position at 20, -30&rdquo;
-          </div>
-          <div className="p-2 bg-white rounded border">
-            <strong className="text-blue-600">Size:</strong> &ldquo;Scale to
-            0.5&rdquo;
-          </div>
-          <div className="p-2 bg-white rounded border">
-            <strong className="text-blue-600">Style:</strong> &ldquo;Color to
-            #0000FF&rdquo;
-          </div>
-        </div>
-        <div className="mt-4 p-3 bg-blue-50 rounded border border-blue-200 text-blue-800 text-sm">
-          <strong>Supported overlays:</strong>{" "}
-          <span className="font-mono">degenify</span>,{" "}
-          <span className="font-mono">higherify</span>,{" "}
-          <span className="font-mono">scrollify</span>
-        </div>
-        <div className="mt-3 p-3 bg-yellow-50 rounded border border-yellow-200 text-yellow-800 text-sm">
-          <strong>Tip:</strong> Separate commands with periods for better
-          results:
-          <br />
-          <span className="font-mono text-xs mt-1 block">
-            Higherify a cat wearing sunglasses. Opacity to 0.3. Color to green.
-          </span>
-        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="mb-8 text-center">
@@ -229,14 +225,15 @@ export default function AgentTest() {
             value={command}
             onChange={(e) => setCommand(e.target.value)}
             placeholder="e.g., Higherify a mountain landscape. Scale to 0.8."
-            className="w-full p-2 border rounded resize-none overflow-hidden"
-            required
-            rows={Math.min(5, Math.max(1, command.split("\n").length))}
+            className="w-full p-2 border rounded resize-none overflow-hidden text-center placeholder:text-center"
             style={{
               minHeight: "42px",
               maxHeight: "150px",
               height: "auto",
+              textAlign: "center",
             }}
+            required
+            rows={Math.min(5, Math.max(1, command.split("\n").length))}
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
               // Reset height to auto to get the correct scrollHeight
@@ -264,6 +261,26 @@ export default function AgentTest() {
       {error && (
         <div className="p-4 mb-4 bg-red-100 border border-red-400 text-red-700 rounded text-center">
           {error}
+        </div>
+      )}
+
+      {walletRequired && (
+        <div className="p-4 mb-4 bg-yellow-100 border border-yellow-400 text-yellow-800 rounded text-center">
+          <h3 className="text-lg font-semibold mb-2">
+            Wallet Connection Required
+          </h3>
+          <p className="mb-3">
+            The &ldquo;lensify&rdquo; overlay requires a connected wallet to use
+            Grove storage.
+          </p>
+          <div className="flex justify-center">
+            <button
+              onClick={() => setWalletRequired(false)}
+              className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+            >
+              Dismiss
+            </button>
+          </div>
         </div>
       )}
 
@@ -296,69 +313,49 @@ export default function AgentTest() {
 
               {parsedCommand.controls &&
                 Object.keys(parsedCommand.controls).length > 0 && (
-                  <div className="mt-3 text-center">
-                    <p className="font-medium mb-2">With these adjustments:</p>
-                    <ul className="list-disc flex flex-col items-center mt-1 space-y-1">
+                  <div className="mt-3">
+                    <p className="mb-2 text-center">With adjustments:</p>
+                    <div className="grid grid-cols-2 gap-2">
                       {parsedCommand.controls.scale !== undefined && (
-                        <li>
-                          Scale:{" "}
-                          <span className="font-mono bg-gray-100 px-1 rounded text-center">
-                            {parsedCommand.controls.scale}
-                          </span>
-                        </li>
+                        <div className="p-2 bg-gray-50 border rounded">
+                          <strong>Scale:</strong> {parsedCommand.controls.scale}
+                        </div>
                       )}
-                      {(parsedCommand.controls.x !== undefined ||
-                        parsedCommand.controls.y !== undefined) && (
-                        <li>
-                          Position:{" "}
-                          <span className="font-mono bg-gray-100 px-1 rounded">
-                            x={parsedCommand.controls.x || 0}, y=
-                            {parsedCommand.controls.y || 0}
-                          </span>
-                        </li>
-                      )}
+                      {parsedCommand.controls.x !== undefined &&
+                        parsedCommand.controls.y !== undefined && (
+                          <div className="p-2 bg-gray-50 border rounded">
+                            <strong>Position:</strong>{" "}
+                            {parsedCommand.controls.x},{" "}
+                            {parsedCommand.controls.y}
+                          </div>
+                        )}
                       {parsedCommand.controls.overlayColor && (
-                        <li>
-                          Color:{" "}
-                          <span className="font-mono bg-gray-100 px-1 rounded">
-                            {parsedCommand.controls.overlayColor}
-                          </span>
-                        </li>
+                        <div className="p-2 bg-gray-50 border rounded">
+                          <strong>Color:</strong>{" "}
+                          {parsedCommand.controls.overlayColor}
+                        </div>
                       )}
                       {parsedCommand.controls.overlayAlpha !== undefined && (
-                        <li>
-                          Opacity:{" "}
-                          <span className="font-mono bg-gray-100 px-1 rounded">
-                            {parsedCommand.controls.overlayAlpha}
-                          </span>
-                        </li>
+                        <div className="p-2 bg-gray-50 border rounded">
+                          <strong>Opacity:</strong>{" "}
+                          {parsedCommand.controls.overlayAlpha}
+                        </div>
                       )}
-                    </ul>
+                    </div>
                   </div>
                 )}
             </div>
-
-            <details className="mt-2">
-              <summary className="cursor-pointer text-sm text-gray-600">
-                View raw data
-              </summary>
-              <pre className="whitespace-pre-wrap break-words text-xs mt-2 bg-gray-50 p-2 rounded">
-                {JSON.stringify(parsedCommand, null, 2)}
-              </pre>
-            </details>
           </div>
-          <div className="mt-4 flex justify-center space-x-4">
+          <div className="flex justify-center gap-4">
             <button
-              type="button"
               onClick={handleConfirm}
-              className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
             >
-              Confirm
+              Yes, do it!
             </button>
             <button
-              type="button"
               onClick={handleCancel}
-              className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+              className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
             >
               Cancel
             </button>
@@ -366,38 +363,89 @@ export default function AgentTest() {
         </div>
       )}
 
-      {result && result.status === "completed" && (
-        <div className="p-4 mb-4 bg-white rounded border text-center">
-          <h2 className="text-xl font-semibold mb-4">Result</h2>
-          <div className="mb-4">
-            <img
-              src={result.previewUrl}
-              alt="Generated image"
-              className="max-w-full h-auto mx-auto rounded border"
-              style={{ maxHeight: "60vh" }}
-            />
-          </div>
-          <div className="flex flex-col items-center">
-            <a
-              href={result.resultUrl}
-              download={`wowow-image.png`}
-              className="px-6 py-2 bg-green-500 text-white rounded hover:bg-green-600 mb-4"
-            >
-              Download Image
-            </a>
-            <p className="text-sm text-gray-500 max-w-md mx-auto">
-              Note: Images are stored temporarily and will be automatically
-              deleted. Please download your image if you want to keep it.
-            </p>
-          </div>
+      {result && (
+        <div className="p-4 mb-8 bg-white rounded border">
+          <h2 className="text-xl font-semibold mb-4 text-center">Result</h2>
+          {result.status === "completed" && result.resultUrl && (
+            <div className="flex flex-col items-center">
+              <div className="relative w-full max-w-md mb-4">
+                <Image
+                  src={result.resultUrl}
+                  alt="Generated image"
+                  width={512}
+                  height={512}
+                  className="w-full h-auto rounded border"
+                />
+              </div>
+              <a
+                href={result.resultUrl || "#"}
+                download
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 mb-4"
+              >
+                Download
+              </a>
+              <p className="text-sm text-gray-500 text-center">
+                Note: Images are stored temporarily. Download to keep.
+              </p>
+
+              {result.groveUri && result.groveUrl && (
+                <div className="mt-4 text-center">
+                  <a
+                    href={result.groveUrl || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-purple-600 hover:text-purple-800 underline"
+                  >
+                    View on Grove
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+          {result.status === "failed" && (
+            <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded text-center">
+              {result.error || "Failed to process the command"}
+            </div>
+          )}
         </div>
       )}
 
-      {result && result.status === "failed" && (
-        <div className="p-4 mb-4 bg-red-100 border border-red-400 text-red-700 rounded text-center">
-          {result.error || "An error occurred while processing your request."}
+      <div className="mb-8 p-4 bg-gray-50 rounded border text-center">
+        <h2 className="text-lg font-semibold mb-3">How</h2>
+        <div className="flex flex-col gap-2 max-w-md mx-auto">
+          <div className="p-2 bg-white rounded border">
+            <strong className="text-blue-600">Basic:</strong> &ldquo;higherify a
+            cat&rdquo;
+          </div>
+          <div className="p-2 bg-white rounded border">
+            <strong className="text-blue-600">Placement:</strong>{" "}
+            &ldquo;Position at 20, -30&rdquo;
+          </div>
+          <div className="p-2 bg-white rounded border">
+            <strong className="text-blue-600">Size:</strong> &ldquo;Scale to
+            0.5&rdquo;
+          </div>
+          <div className="p-2 bg-white rounded border">
+            <strong className="text-blue-600">Style:</strong> &ldquo;Color to
+            #0000FF&rdquo;
+          </div>
         </div>
-      )}
+        <div className="mt-4 p-3 bg-blue-50 rounded border border-blue-200 text-blue-800 text-sm max-w-md mx-auto">
+          <strong>Supported overlays:</strong>{" "}
+          <span className="font-mono">degenify</span>,{" "}
+          <span className="font-mono">higherify</span>,{" "}
+          <span className="font-mono">scrollify</span>,{" "}
+          <span className="font-mono">lensify</span>
+        </div>
+        <div className="mt-3 p-3 bg-yellow-50 rounded border border-yellow-200 text-yellow-800 text-sm max-w-md mx-auto">
+          <strong>Tip:</strong> Separate commands with periods for better
+          results:
+          <br />
+          <span className="font-mono text-xs mt-1 block">
+            Higherify a cat wearing sunglasses. Opacity to 0.3. Color to green.
+          </span>
+        </div>
+      </div>
 
       {result && (
         <details className="mt-4">
@@ -410,5 +458,14 @@ export default function AgentTest() {
         </details>
       )}
     </div>
+  );
+}
+
+// Export the wrapped component
+export default function AgentTest() {
+  return (
+    <Web3Provider>
+      <AgentContent />
+    </Web3Provider>
   );
 }

@@ -117,6 +117,12 @@ export function parseCommand(input: string): ParsedCommand {
     ) {
       result.overlayMode = "higherify";
       result.action = "overlay";
+
+      // Extract the prompt from the input for implicit overlay commands
+      const promptText = cleanPrompt(input);
+      if (promptText.length > 5) {
+        result.prompt = promptText;
+      }
     } else if (
       input.toLowerCase().includes("degenify") ||
       input.toLowerCase().includes("degen overlay") ||
@@ -124,6 +130,12 @@ export function parseCommand(input: string): ParsedCommand {
     ) {
       result.overlayMode = "degenify";
       result.action = "overlay";
+
+      // Extract the prompt from the input for implicit overlay commands
+      const promptText = cleanPrompt(input);
+      if (promptText.length > 5) {
+        result.prompt = promptText;
+      }
     } else if (
       input.toLowerCase().includes("scrollify") ||
       input.toLowerCase().includes("scroll overlay") ||
@@ -131,6 +143,25 @@ export function parseCommand(input: string): ParsedCommand {
     ) {
       result.overlayMode = "scrollify";
       result.action = "overlay";
+
+      // Extract the prompt from the input for implicit overlay commands
+      const promptText = cleanPrompt(input);
+      if (promptText.length > 5) {
+        result.prompt = promptText;
+      }
+    } else if (
+      input.toLowerCase().includes("lensify") ||
+      input.toLowerCase().includes("lens overlay") ||
+      input.toLowerCase().includes("lens style")
+    ) {
+      result.overlayMode = "lensify";
+      result.action = "overlay";
+
+      // Extract the prompt from the input for implicit overlay commands
+      const promptText = cleanPrompt(input);
+      if (promptText.length > 5) {
+        result.prompt = promptText;
+      }
     }
   }
 

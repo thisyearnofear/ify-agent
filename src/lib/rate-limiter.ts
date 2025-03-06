@@ -1,33 +1,8 @@
-import Redis from "ioredis";
 import { logger } from "./logger";
+import { getRedisClient, executeWithTimeout } from "./redis";
 
 const RATE_LIMIT_WINDOW = 3600; // 1 hour in seconds
 const MAX_REQUESTS = 20; // Maximum requests per window
-
-if (!process.env.REDIS_URL) {
-  throw new Error("REDIS_URL is not configured");
-}
-
-// Configure Redis with TLS for Upstash in production
-const redis = new Redis(process.env.REDIS_URL, {
-  tls: process.env.NODE_ENV === "production" ? {} : undefined,
-  maxRetriesPerRequest: 3,
-  retryStrategy(times) {
-    const delay = Math.min(times * 50, 2000);
-    logger.info("Redis retry", { times, delay });
-    return delay;
-  },
-});
-
-redis.on("error", (error) => {
-  logger.error("Redis connection error", {
-    error: error instanceof Error ? error.message : "Unknown error",
-  });
-});
-
-redis.on("connect", () => {
-  logger.info("Redis connected successfully");
-});
 
 export interface RateLimitInfo {
   isAllowed: boolean;
@@ -39,16 +14,30 @@ export async function getRateLimitInfo(ip: string): Promise<RateLimitInfo> {
   const key = `rate_limit:${ip}`;
 
   try {
-    // Get the current count
-    const count = await redis.incr(key);
+    const redis = getRedisClient();
+
+    // Get the current count with timeout
+    const count = await executeWithTimeout(
+      () => redis.incr(key),
+      2000, // 2 second timeout
+      1 // Default to 1 if timeout
+    );
 
     // If this is the first request, set expiry
     if (count === 1) {
-      await redis.expire(key, RATE_LIMIT_WINDOW);
+      await executeWithTimeout(
+        () => redis.expire(key, RATE_LIMIT_WINDOW),
+        2000 // 2 second timeout
+      );
     }
 
-    // Get TTL
-    const ttl = await redis.ttl(key);
+    // Get TTL with timeout
+    const ttl = await executeWithTimeout(
+      () => redis.ttl(key),
+      2000, // 2 second timeout
+      RATE_LIMIT_WINDOW // Default to full window if timeout
+    );
+
     const timeToReset = ttl < 0 ? RATE_LIMIT_WINDOW : ttl;
     const isAllowed = count <= MAX_REQUESTS;
     const remaining = Math.max(0, MAX_REQUESTS - count);

@@ -7,6 +7,15 @@ const nextConfig = {
     serverActions: {
       allowedOrigins: ["*"],
     },
+    turbo: {
+      // Configure Turbopack
+      resolveAlias: {
+        // Add any aliases needed for Turbopack
+      },
+      rules: {
+        // Add any custom rules for Turbopack
+      },
+    },
   },
   webpack: (config, { isServer, webpack }) => {
     if (isServer) {

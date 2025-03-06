@@ -14,7 +14,12 @@ interface OverlayControls {
   overlayAlpha: number;
 }
 
-export type OverlayMode = "degenify" | "higherify" | "wowowify" | "scrollify";
+export type OverlayMode =
+  | "degenify"
+  | "higherify"
+  | "wowowify"
+  | "scrollify"
+  | "lensify";
 export type Stage = "initial" | "style" | "adjust";
 
 export default function ImageOverlay() {

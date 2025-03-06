@@ -1,8 +1,16 @@
 {
     "version": 2,
-    "buildCommand": "npm run build",
+    "builds": [
+        {
+            "src": "package.json",
+            "use": "@vercel/next",
+            "config": {
+                "installCommand": "npm run vercel-install"
+            }
+        }
+    ],
     "devCommand": "npm run dev",
-    "installCommand": "npm install",
+    "installCommand": "npm run vercel-install",
     "framework": "nextjs",
     "regions": [
         "sfo1"

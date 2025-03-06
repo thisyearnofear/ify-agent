@@ -18,7 +18,7 @@ curl -X POST https://your-app.com/api/agent \
 The agent understands commands like:
 
 - "Generate an image of [description]"
-- "Apply the [style] overlay" (styles: degenify, higherify, wowowify, scrollify)
+- "Apply the [style] overlay" (styles: degenify, higherify, wowowify, scrollify, lensify)
 - "Position at [x], [y]"
 - "Scale to [size]"
 - "Set color to [color]"
@@ -46,10 +46,7 @@ You can also provide structured parameters to override NLP extraction:
 
 - 🎨 AI Image Generation using Venice AI
 - 🖼️ Image Overlay System with multiple modes:
-  - Degenify: Apply degenerate-style overlays
-  - Higherify: Add premium/luxury effects
-  - Wowowify: Add wow-factor elements
-  - Scrollify: Add scroll-like elements
+  - Lensify: Add lens-style overlays with Web3 storage via Grove
 - 🎭 Custom image upload for both base images and overlays
 - 🎛️ Advanced image controls:
   - Positioning (X/Y coordinates)
@@ -62,6 +59,7 @@ You can also provide structured parameters to override NLP extraction:
 - 🚦 Error handling and timeout management
 - 🔄 Automatic retries for Redis operations
 - 📝 Comprehensive logging
+- 🌳 Web3 storage integration with Grove (for Lensify overlay)
 
 ## Environment Setup
 
@@ -124,7 +122,7 @@ Process natural language commands to generate and manipulate images:
   "parameters": {
     "baseImageUrl": "optional URL to an existing image",
     "prompt": "optional prompt to override NLP extraction",
-    "overlayMode": "degenify" | "higherify" | "wowowify" | "scrollify",
+    "overlayMode": "degenify" | "higherify" | "wowowify" | "scrollify" | "lensify",
     "controls": {
       "scale": 1.2,
       "x": 0,
@@ -145,7 +143,9 @@ Response:
   "status": "processing" | "completed" | "failed",
   "resultUrl": "URL to the processed image",
   "previewUrl": "URL to a preview of the processed image",
-  "error": "Error message if status is failed"
+  "error": "Error message if status is failed",
+  "groveUri": "Optional Grove URI for lensify overlay",
+  "groveUrl": "Optional Grove URL for lensify overlay"
 }
 ```
 
@@ -198,6 +198,24 @@ When deploying to Vercel or other serverless environments, keep these important 
    - Ensure timeouts are properly handled with AbortController
    - Verify that all environment variables are correctly set in Vercel
 
+## Grove Integration
+
+The application integrates with Grove, a secure, flexible, onchain-controlled storage layer for Web3 apps. When using the "lensify" overlay, the generated image is stored both in memory and on Grove.
+
+### How it works
+
+1. When a user requests an image with the "lensify" overlay, the application processes the image as usual.
+2. After processing, the image is stored in memory like other overlays.
+3. Additionally, the image is uploaded to Grove using the `@lens-chain/storage-client` library.
+4. The response includes both the standard image URLs and Grove-specific URIs and URLs.
+5. The UI displays Grove information when available, allowing users to access their images through Grove.
+
+### Benefits
+
+- **Persistent Storage**: Unlike in-memory storage, Grove provides more persistent storage for images.
+- **Web3 Integration**: Images stored on Grove can be referenced in Web3 applications.
+- **Access Control**: Grove supports various access control mechanisms for uploaded content.
+
 ## Technologies Used
 
 - [Next.js 15](https://nextjs.org/)
@@ -206,6 +224,7 @@ When deploying to Vercel or other serverless environments, keep these important 
 - [TypeScript](https://www.typescriptlang.org/)
 - [Tailwind CSS](https://tailwindcss.com/)
 - [Canvas](https://www.npmjs.com/package/canvas) for image processing
+- [Grove](https://grove.storage) for Web3 storage
 
 ## Learn More
 
@@ -215,6 +234,7 @@ To learn more about the technologies used:
 - [Venice AI Documentation](https://docs.venice.ai)
 - [Upstash Redis Documentation](https://docs.upstash.com/redis)
 - [Vercel Serverless Functions](https://vercel.com/docs/functions)
+- [Grove Documentation](https://docs.grove.storage)
 
 ## Contributing
 
