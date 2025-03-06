@@ -250,10 +250,6 @@ export default function ImageOverlay() {
       }
     } catch (error) {
       console.error("Error generating image:", error);
-      // You might want to show this error to the user in a toast or alert
-      alert(
-        error instanceof Error ? error.message : "Failed to generate image"
-      );
     } finally {
       setIsGenerating(false);
     }

@@ -1,140 +1,144 @@
 import { NextResponse } from "next/server";
+import { getRateLimitInfo } from "@/lib/rate-limiter";
+import { logger } from "@/lib/logger";
+import { headers } from "next/headers";
 
-export const runtime = "edge"; // Edge runtime for better performance
+const ALLOWED_MODELS = ["stable-diffusion-3.5", "fluently-xl"];
+const DEFAULT_MODEL = "fluently-xl";
 
-const VENICE_API_URL = "https://api.venice.run/api/v1/images/generations";
-
-export async function POST(req: Request) {
-  console.log("Starting image generation request");
+export async function POST(request: Request) {
   try {
-    // Validate request body
-    let body;
-    try {
-      body = await req.json();
-      console.log("Received request body:", {
-        prompt: body.prompt,
-        model: body.model,
-      });
-    } catch (e) {
-      console.error("Invalid request body:", e);
+    // Get client IP
+    const headersList = await headers();
+    const ip =
+      headersList.get("x-forwarded-for")?.split(",")[0] ||
+      headersList.get("x-real-ip") ||
+      "unknown";
+
+    // Check rate limit
+    const rateLimitInfo = await getRateLimitInfo(ip);
+
+    // Always add rate limit headers
+    const responseHeaders = {
+      "X-RateLimit-Limit": "20",
+      "X-RateLimit-Remaining": rateLimitInfo.remaining?.toString() || "0",
+      "X-RateLimit-Reset": rateLimitInfo.timeToReset.toString(),
+    };
+
+    if (!rateLimitInfo.isAllowed) {
+      logger.warn("Rate limit exceeded", { ip });
       return NextResponse.json(
-        { error: "Invalid request body" },
-        { status: 400 }
+        {
+          error: `Rate limit exceeded. Try again in ${rateLimitInfo.timeToReset} seconds`,
+        },
+        {
+          status: 429,
+          headers: responseHeaders,
+        }
       );
     }
 
-    const { prompt, model } = body;
-
-    if (!prompt) {
-      console.error("No prompt provided");
+    // Input validation
+    if (!process.env.VENICE_API_KEY) {
+      logger.error("VENICE_API_KEY is not configured");
       return NextResponse.json(
-        { error: "Prompt is required" },
-        { status: 400 }
-      );
-    }
-
-    // Verify API key exists
-    const apiKey = process.env.VENICE_API_KEY;
-    if (!apiKey) {
-      console.error("API key not configured");
-      return NextResponse.json(
-        { error: "API key not configured" },
+        { error: "Server configuration error" },
         { status: 500 }
       );
     }
 
-    // Call Venice API with timeout
+    const body = await request.json();
+    const { prompt, model = DEFAULT_MODEL } = body;
+
+    if (!prompt) {
+      logger.warn("Missing prompt in request", { ip });
+      return NextResponse.json(
+        { error: "Prompt is required" },
+        { status: 400, headers: responseHeaders }
+      );
+    }
+
+    if (!ALLOWED_MODELS.includes(model)) {
+      logger.warn("Invalid model requested", { ip, model });
+      return NextResponse.json(
+        {
+          error: `Invalid model. Allowed models are: ${ALLOWED_MODELS.join(
+            ", "
+          )}`,
+        },
+        { status: 400, headers: responseHeaders }
+      );
+    }
+
+    logger.info("Starting image generation", {
+      ip,
+      model,
+      promptLength: prompt.length,
+    });
+
+    // API request configuration
+    const options = {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.VENICE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        hide_watermark: false,
+        model,
+        prompt,
+        width: 768,
+        height: 768,
+      }),
+    };
+
+    // API request with timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    const timeout = setTimeout(() => controller.abort(), 30000);
 
     try {
-      console.log("Calling Venice API...");
-      const response = await fetch(VENICE_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          prompt,
-          model: model || "stable-diffusion-3.5",
-          n: 1,
-          size: "1024x1024",
-        }),
-        signal: controller.signal,
-      });
+      const response = await fetch(
+        "https://api.venice.ai/api/v1/image/generate",
+        {
+          ...options,
+          signal: controller.signal,
+        }
+      );
 
-      clearTimeout(timeoutId);
-      console.log("Venice API response status:", response.status);
+      clearTimeout(timeout);
 
-      // Handle non-JSON responses
-      const contentType = response.headers.get("content-type");
-      if (!contentType?.includes("application/json")) {
-        const text = await response.text();
-        console.error("Non-JSON response from Venice API:", {
-          status: response.status,
-          contentType,
-          text,
-        });
-        return NextResponse.json(
-          {
-            error: "Invalid response from image service",
-            details: text,
-          },
-          { status: 502 }
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(
+          `Venice API error: ${data.error || response.statusText}`
         );
       }
 
       const data = await response.json();
-      console.log("Venice API response:", {
-        ok: response.ok,
-        status: response.status,
-        hasImages: !!data.images,
-      });
-
-      if (!response.ok) {
-        console.error("API error response:", data);
+      logger.info("Image generation successful", { ip });
+      return NextResponse.json(data, { headers: responseHeaders });
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        logger.error("Request timeout", { ip });
         return NextResponse.json(
-          {
-            error: data.error || "Failed to generate image",
-            details: data,
-          },
-          { status: response.status }
+          { error: "Request timed out" },
+          { status: 504, headers: responseHeaders }
         );
       }
-
-      return NextResponse.json(data);
-    } catch (fetchError: unknown) {
-      clearTimeout(timeoutId);
-      console.error("Fetch error:", fetchError);
-
-      if (fetchError instanceof Error) {
-        if (fetchError.name === "AbortError") {
-          return NextResponse.json(
-            { error: "Request timeout" },
-            { status: 504 }
-          );
-        }
-
-        return NextResponse.json(
-          {
-            error: "Failed to generate image",
-            details: fetchError.message,
-          },
-          { status: 500 }
-        );
-      }
-
-      throw fetchError;
+      throw error;
     }
-  } catch (error: unknown) {
-    console.error("Unhandled error:", error);
-    return NextResponse.json(
-      {
-        error: "Failed to generate image",
-        details: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    );
+  } catch (error) {
+    logger.error("Error generating image", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+
+    const errorMessage =
+      process.env.NODE_ENV === "development"
+        ? error instanceof Error
+          ? error.message
+          : "Unknown error"
+        : "Failed to generate image";
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
