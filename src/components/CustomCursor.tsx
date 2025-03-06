@@ -34,6 +34,10 @@ export default function CustomCursor() {
         cursorIcon.textContent = "↑";
         cursorIcon.style.color = "#059669"; // emerald-600
         cursor.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0) scale(1.2)`;
+      } else if (target.closest('[data-theme="scrollify"]')) {
+        cursorIcon.textContent = "📜";
+        cursorIcon.style.color = "#D97706"; // amber-600
+        cursor.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0) scale(1.2)`;
       } else if (target.closest('[data-theme="wowowify"]')) {
         cursorIcon.textContent = "🤯";
         cursor.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0) scale(1.2)`;
