@@ -62,58 +62,49 @@ const config = createConfig(
       // RPC URLs for each chain
       [mainnet.id]: http(
         `https://eth-mainnet.g.alchemy.com/v2/${
-          process.env.NEXT_PUBLIC_ALCHEMY_ID ||
-          "Tx9luktS3qyIwEKVtjnQrpq8t3MNEV-B"
+          process.env.NEXT_PUBLIC_ALCHEMY_ID || ""
         }`
       ),
       [polygon.id]: http(
         `https://polygon-mainnet.g.alchemy.com/v2/${
-          process.env.NEXT_PUBLIC_ALCHEMY_ID ||
-          "Tx9luktS3qyIwEKVtjnQrpq8t3MNEV-B"
+          process.env.NEXT_PUBLIC_ALCHEMY_ID || ""
         }`
       ),
       [optimism.id]: http(
         `https://opt-mainnet.g.alchemy.com/v2/${
-          process.env.NEXT_PUBLIC_ALCHEMY_ID ||
-          "Tx9luktS3qyIwEKVtjnQrpq8t3MNEV-B"
+          process.env.NEXT_PUBLIC_ALCHEMY_ID || ""
         }`
       ),
       [base.id]: http(
         `https://base-mainnet.g.alchemy.com/v2/${
-          process.env.NEXT_PUBLIC_ALCHEMY_ID ||
-          "Tx9luktS3qyIwEKVtjnQrpq8t3MNEV-B"
+          process.env.NEXT_PUBLIC_ALCHEMY_ID || ""
         }`
       ),
       [zksync.id]: http(
         `https://zksync-mainnet.g.alchemy.com/v2/${
-          process.env.NEXT_PUBLIC_ALCHEMY_ID ||
-          "Tx9luktS3qyIwEKVtjnQrpq8t3MNEV-B"
+          process.env.NEXT_PUBLIC_ALCHEMY_ID || ""
         }`
       ),
       [linea.id]: http(
         `https://linea-mainnet.g.alchemy.com/v2/${
-          process.env.NEXT_PUBLIC_ALCHEMY_ID ||
-          "Tx9luktS3qyIwEKVtjnQrpq8t3MNEV-B"
+          process.env.NEXT_PUBLIC_ALCHEMY_ID || ""
         }`
       ),
       [scroll.id]: http(
         `https://scroll-mainnet.g.alchemy.com/v2/${
-          process.env.NEXT_PUBLIC_ALCHEMY_ID ||
-          "Tx9luktS3qyIwEKVtjnQrpq8t3MNEV-B"
+          process.env.NEXT_PUBLIC_ALCHEMY_ID || ""
         }`
       ),
       [lensSepolia.id]: http(
         `https://lens-sepolia.g.alchemy.com/v2/${
-          process.env.NEXT_PUBLIC_ALCHEMY_ID ||
-          "Tx9luktS3qyIwEKVtjnQrpq8t3MNEV-B"
+          process.env.NEXT_PUBLIC_ALCHEMY_ID || ""
         }`
       ),
     },
 
     // Required API Keys
     walletConnectProjectId:
-      process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
-      "cda891a164b2c7b0cb7b1a7056c47204",
+      process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "",
 
     // Required App Info
     appName: "WOWOWIFY",

@@ -57,6 +57,29 @@ function AgentContent() {
   const [walletRequired, setWalletRequired] = useState(false);
   const { isConnected, address } = useAccount();
 
+  // Helper function to proxy IPFS URLs to avoid CORS issues
+  const getProxiedUrl = (url: string): string => {
+    if (!url) return "";
+
+    // List of IPFS gateways that might need proxying
+    const ipfsGateways = [
+      "https://ipfs.io/ipfs/",
+      "https://gateway.ipfs.io/ipfs/",
+      "https://cloudflare-ipfs.com/ipfs/",
+      "https://lens.infura-ipfs.io/ipfs/",
+    ];
+
+    // Check if the URL is from any of the IPFS gateways
+    const isIpfsUrl = ipfsGateways.some((gateway) => url.startsWith(gateway));
+
+    if (isIpfsUrl) {
+      console.log("Proxying IPFS URL:", url);
+      return `/api/proxy?url=${encodeURIComponent(url)}`;
+    }
+
+    return url;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -180,11 +203,20 @@ function AgentContent() {
       }
     } catch (error) {
       console.error("Request error:", error);
-      setError(
-        error instanceof Error
-          ? error.message
-          : "An unexpected error occurred. Please try again."
-      );
+      const errorMessage =
+        error instanceof Error ? error.message : "An unexpected error occurred";
+
+      // Check for timeout or cold start scenarios
+      if (
+        errorMessage.includes("504") ||
+        errorMessage.includes("FUNCTION_INVOCATION_TIMEOUT")
+      ) {
+        setError(
+          "The server is warming up. Please try again in a few moments. This happens when the server hasn't been used for a while."
+        );
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
       setShowConfirmation(false);
@@ -370,7 +402,7 @@ function AgentContent() {
             <div className="flex flex-col items-center">
               <div className="relative w-full max-w-md mb-4">
                 <Image
-                  src={result.resultUrl}
+                  src={getProxiedUrl(result.resultUrl)}
                   alt="Generated image"
                   width={512}
                   height={512}

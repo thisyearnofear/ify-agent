@@ -16,15 +16,15 @@ const OVERLAY_URLS = {
 
 // Preload overlay images to speed up processing
 const OVERLAY_PROMISES = {
-  degenify: loadImage(OVERLAY_URLS.degenify).catch((err) => {
+  degenify: loadImage(OVERLAY_URLS.degenify).catch((err): null => {
     logger.error("Failed to preload degenify overlay", { error: err.message });
     return null;
   }),
-  higherify: loadImage(OVERLAY_URLS.higherify).catch((err) => {
+  higherify: loadImage(OVERLAY_URLS.higherify).catch((err): null => {
     logger.error("Failed to preload higherify overlay", { error: err.message });
     return null;
   }),
-  scrollify: loadImage(OVERLAY_URLS.scrollify).catch((err) => {
+  scrollify: loadImage(OVERLAY_URLS.scrollify).catch((err): null => {
     logger.error("Failed to preload scrollify overlay", { error: err.message });
     return null;
   }),

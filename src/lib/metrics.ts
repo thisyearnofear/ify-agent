@@ -1,5 +1,10 @@
 import { logger } from "./logger";
-import { getRedisClient, executeWithTimeout } from "./redis";
+import {
+  getRedisClient,
+  executeWithTimeout,
+  getInMemoryData,
+  setInMemoryData,
+} from "./redis";
 
 let totalRequests = 0;
 let failedRequests = 0;
@@ -46,6 +51,15 @@ export function getMetrics(): {
   };
 }
 
+// Define an interface for the image record
+export interface ImageRecord {
+  id: string;
+  resultUrl: string;
+  groveUri?: string;
+  groveUrl?: string;
+  timestamp: string;
+}
+
 // Function to store image URLs in Redis
 export async function storeImageUrl(
   imageId: string,
@@ -63,16 +77,14 @@ export async function storeImageUrl(
       return;
     }
 
-    const redis = getRedisClient();
-
     // Create a record with timestamp and URLs
-    const imageRecord = JSON.stringify({
+    const imageRecord: ImageRecord = {
       id: imageId,
       resultUrl,
       groveUri: groveUri || "",
       groveUrl: groveUrl || "",
       timestamp: new Date().toISOString(),
-    });
+    };
 
     logger.info("Storing image URL in history", {
       imageId,
@@ -80,49 +92,107 @@ export async function storeImageUrl(
       hasGroveUrl: !!groveUrl,
     });
 
-    // Store in a Redis list with timeout - this allows us to retrieve in order
-    await executeWithTimeout(
-      () => redis.lpush("image_history", imageRecord),
-      5000 // 5 second timeout
-    );
+    try {
+      const redis = getRedisClient();
 
-    // Optional: Set a max length to prevent unlimited growth
-    await executeWithTimeout(
-      () => redis.ltrim("image_history", 0, 999), // Keep the most recent 1000 images
-      3000 // 3 second timeout
-    );
+      // Store in a Redis list with timeout - this allows us to retrieve in order
+      await executeWithTimeout(
+        () => redis.lpush("image_history", JSON.stringify(imageRecord)),
+        5000, // 5 second timeout
+        null // Return null as fallback if timeout
+      );
 
-    logger.info("Successfully stored image URL in history", { imageId });
+      // Optional: Set a max length to prevent unlimited growth
+      await executeWithTimeout(
+        () => redis.ltrim("image_history", 0, 999), // Keep the most recent 1000 images
+        3000, // 3 second timeout
+        null // Return null as fallback if timeout
+      );
+
+      logger.info("Successfully stored image URL in Redis", { imageId });
+    } catch (error) {
+      // If Redis fails, store in memory as fallback
+      logger.warn("Falling back to in-memory storage", {
+        error: error instanceof Error ? error.message : String(error),
+        imageId,
+      });
+
+      // Get current in-memory history
+      const inMemoryHistory = getInMemoryData("image_history") || [];
+
+      // Add new record to the beginning (like lpush)
+      inMemoryHistory.unshift(imageRecord);
+
+      // Trim to 1000 items max
+      if (inMemoryHistory.length > 1000) {
+        inMemoryHistory.length = 1000;
+      }
+
+      // Save back to in-memory storage
+      setInMemoryData("image_history", inMemoryHistory);
+
+      logger.info("Successfully stored image URL in memory", { imageId });
+    }
   } catch (error) {
     logger.error("Failed to store image URL in history", {
       error: error instanceof Error ? error.message : String(error),
       imageId,
     });
-    // Don't rethrow - we don't want to fail the request if Redis fails
+    // Don't rethrow - we don't want to fail the request if storage fails
   }
 }
 
 // Function to retrieve image history
-export async function getImageHistory(limit: number = 100): Promise<
-  Array<{
-    id: string;
-    resultUrl: string;
-    groveUri?: string;
-    groveUrl?: string;
-    timestamp: string;
-  }>
-> {
+export async function getImageHistory(
+  limit: number = 100
+): Promise<ImageRecord[]> {
   try {
-    const redis = getRedisClient();
+    let records: string[] = [];
+    let useInMemory = false;
 
-    // Get the most recent entries with timeout
-    const records = await executeWithTimeout(
-      () => redis.lrange("image_history", 0, limit - 1),
-      5000, // 5 second timeout
-      [] // Return empty array as fallback if timeout
-    );
+    try {
+      const redis = getRedisClient();
 
-    logger.info("Raw image history retrieved", { count: records.length });
+      // Get the most recent entries with timeout
+      records = await executeWithTimeout(
+        () => redis.lrange("image_history", 0, limit - 1),
+        5000, // 5 second timeout
+        [] // Return empty array as fallback if timeout
+      );
+
+      logger.info("Raw image history retrieved from Redis", {
+        count: records.length,
+      });
+    } catch (error) {
+      logger.warn("Failed to retrieve from Redis, using in-memory fallback", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      useInMemory = true;
+    }
+
+    // If Redis failed or returned no results, try in-memory fallback
+    if (useInMemory || records.length === 0) {
+      const inMemoryHistory = getInMemoryData("image_history") || [];
+      logger.info("Using in-memory history fallback", {
+        count: inMemoryHistory.length,
+      });
+
+      // Return the in-memory records directly (they're already objects)
+      const slicedHistory = inMemoryHistory.slice(0, limit) as ImageRecord[];
+
+      // Log some stats about the in-memory data
+      logger.info("Parsed in-memory history", {
+        count: slicedHistory.length,
+        withGroveUri: slicedHistory.filter(
+          (r) => r && typeof r === "object" && "groveUri" in r && !!r.groveUri
+        ).length,
+        withGroveUrl: slicedHistory.filter(
+          (r) => r && typeof r === "object" && "groveUrl" in r && !!r.groveUrl
+        ).length,
+      });
+
+      return slicedHistory;
+    }
 
     // Parse the JSON records and filter out invalid ones
     const parsedRecords = records
