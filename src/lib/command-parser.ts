@@ -4,9 +4,9 @@ import { logger } from "./logger";
 // Regular expressions for parsing commands
 const URL_PATTERN = /https?:\/\/[^\s]+/;
 const OVERLAY_PATTERNS = [
-  /apply\s+(higherify|degenify|scrollify)/i,
-  /use\s+(higherify|degenify|scrollify)/i,
-  /with\s+(higherify|degenify|scrollify)/i,
+  /apply\s+(higherify|degenify|scrollify|lensify)/i,
+  /use\s+(higherify|degenify|scrollify|lensify)/i,
+  /with\s+(higherify|degenify|scrollify|lensify)/i,
 ];
 const POSITION_PATTERNS = [
   /position\s+(?:at|to)?\s*(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/i,
@@ -33,6 +33,14 @@ const GENERATE_PATTERNS = [
   /make\s+(?:an?\s+image\s+(?:of|with))?\s*(.*)/i,
 ];
 
+// Patterns for overlaying images from casts
+const PARENT_IMAGE_PATTERNS = [
+  /overlay\s+(?:on|to|onto)\s+(?:this|parent|above|previous)\s+image/i,
+  /apply\s+(?:to|on|onto)\s+(?:this|parent|above|previous)\s+image/i,
+  /use\s+(?:this|parent|above|previous)\s+image/i,
+  /(?:this|parent|above|previous)\s+image/i,
+];
+
 // Control instruction patterns to remove from prompt
 const CONTROL_INSTRUCTION_PATTERNS = [
   /scale\s+(?:to|by)?\s*-?\d+\.?\d*/gi,
@@ -47,6 +55,10 @@ const CONTROL_INSTRUCTION_PATTERNS = [
   /alpha\s+(?:to|of)?\s*-?\d+\.?\d*/gi,
   /transparent\s+(?:to|of)?\s*-?\d+\.?\d*/gi,
   /set\s+opacity\s+(?:to)?\s*-?\d+\.?\d*/gi,
+  /overlay\s+(?:on|to|onto)\s+(?:this|parent|above|previous)\s+image/gi,
+  /apply\s+(?:to|on|onto)\s+(?:this|parent|above|previous)\s+image/gi,
+  /use\s+(?:this|parent|above|previous)\s+image/gi,
+  /(?:this|parent|above|previous)\s+image/gi,
 ];
 
 /**
@@ -57,7 +69,7 @@ function cleanPrompt(text: string): string {
 
   // Remove overlay mode terms
   cleanedText = cleanedText
-    .replace(/\b(higherify|degenify|scrollify)\b/gi, "")
+    .replace(/\b(higherify|degenify|scrollify|lensify)\b/gi, "")
     .replace(/\b(overlay|style|effect)\b/gi, "");
 
   // Remove control instructions
@@ -87,8 +99,17 @@ export function parseCommand(input: string): ParsedCommand {
   // Check for image URL
   const urlMatch = input.match(URL_PATTERN);
   if (urlMatch) {
-    result.baseImageUrl = urlMatch[1];
+    result.baseImageUrl = urlMatch[0];
     result.action = "overlay";
+  }
+
+  // Check for parent image reference
+  for (const pattern of PARENT_IMAGE_PATTERNS) {
+    if (pattern.test(input)) {
+      result.useParentImage = true;
+      result.action = "overlay";
+      break;
+    }
   }
 
   // Check for overlay mode
@@ -99,7 +120,8 @@ export function parseCommand(input: string): ParsedCommand {
       if (
         overlayName === "higherify" ||
         overlayName === "degenify" ||
-        overlayName === "scrollify"
+        overlayName === "scrollify" ||
+        overlayName === "lensify"
       ) {
         result.overlayMode = overlayName;
         result.action = "overlay";
@@ -221,7 +243,7 @@ export function parseCommand(input: string): ParsedCommand {
 
   // Extract the prompt from the input
   // First, try to find a specific generate command
-  if (!result.baseImageUrl) {
+  if (!result.baseImageUrl && !result.useParentImage) {
     for (const pattern of GENERATE_PATTERNS) {
       const match = input.match(pattern);
       if (match) {
@@ -236,7 +258,12 @@ export function parseCommand(input: string): ParsedCommand {
   }
 
   // If no specific generate command was found, try to extract a prompt from the whole input
-  if (!result.prompt && !result.baseImageUrl && input.length > 10) {
+  if (
+    !result.prompt &&
+    !result.baseImageUrl &&
+    !result.useParentImage &&
+    input.length > 10
+  ) {
     const promptText = cleanPrompt(input);
 
     if (promptText.length > 5) {
@@ -246,26 +273,13 @@ export function parseCommand(input: string): ParsedCommand {
   }
 
   // If we have an overlay mode but no action, set action to overlay
-  if (
-    !result.overlayMode &&
-    (input.toLowerCase().includes("overlay") ||
-      input.toLowerCase().includes("style") ||
-      input.toLowerCase().includes("effect"))
-  ) {
-    // Default to higherify instead of wowowify
-    result.overlayMode = "higherify";
+  if (result.overlayMode && result.action !== "overlay") {
     result.action = "overlay";
   }
 
-  // If we have a prompt and overlay-related terms, add overlay mode
-  if (
-    result.action === "generate" &&
-    result.prompt &&
-    (input.toLowerCase().includes("overlay") ||
-      input.toLowerCase().includes("style") ||
-      input.toLowerCase().includes("effect"))
-  ) {
-    result.overlayMode = result.overlayMode || "higherify";
+  // If we have a useParentImage flag but no overlay mode, default to lensify
+  if (result.useParentImage && !result.overlayMode) {
+    result.overlayMode = "lensify";
   }
 
   logger.info("Parsed command", {
@@ -273,6 +287,7 @@ export function parseCommand(input: string): ParsedCommand {
     prompt: result.prompt,
     overlayMode: result.overlayMode,
     baseImageUrl: result.baseImageUrl,
+    useParentImage: result.useParentImage,
     hasControls: result.controls ? true : false,
     ...(result.controls
       ? {

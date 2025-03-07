@@ -7,6 +7,7 @@ export interface AgentCommand {
     prompt?: string;
     overlayMode?: OverlayMode | "lensify";
     action?: "generate" | "overlay" | "adjust" | "download";
+    useParentImage?: boolean;
     controls?: {
       scale?: number;
       x?: number;
@@ -16,6 +17,7 @@ export interface AgentCommand {
     };
   };
   callbackUrl?: string;
+  parentImageUrl?: string; // URL of the parent cast's image
 }
 
 export interface AgentResponse {
@@ -33,6 +35,7 @@ export interface ParsedCommand {
   prompt?: string;
   overlayMode?: OverlayMode | "lensify";
   baseImageUrl?: string;
+  useParentImage?: boolean; // Flag to use the parent cast's image
   controls?: {
     scale?: number;
     x?: number;

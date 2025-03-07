@@ -86,15 +86,15 @@ export async function POST(request: Request): Promise<Response> {
         )}`
       : "";
 
-    // Parse the request body
+    // Extract parameters from the request body
     const body = await request.json();
-    const command = body.command as string;
+    const command = body.command;
     const providedParameters = body.parameters;
+    // Extract wallet address for Grove storage
+    const walletAddressForOverlay = body.walletAddress as string;
+    const parentImageUrl = body.parentImageUrl; // Extract parent image URL
 
-    // Check if wallet address is provided for lensify overlay
-    const walletAddress = body.walletAddress as string;
-
-    // Parse the command
+    // Parse the command if not provided explicitly
     let parsedCommand: ParsedCommand;
     if (providedParameters) {
       parsedCommand = providedParameters as ParsedCommand;
@@ -147,6 +147,11 @@ export async function POST(request: Request): Promise<Response> {
       if (body.parameters.action) {
         parsedCommand.action = body.parameters.action;
       }
+    }
+
+    // If parentImageUrl is provided, use it as the baseImageUrl
+    if (parentImageUrl && parsedCommand.useParentImage) {
+      parsedCommand.baseImageUrl = parentImageUrl;
     }
 
     // Validate overlay mode
@@ -207,6 +212,7 @@ export async function POST(request: Request): Promise<Response> {
 
           logger.info("Generating image with Venice API", {
             prompt: parsedCommand.prompt,
+            model: "stable-diffusion-3.5",
           });
 
           const veniceResponse = await fetch(
@@ -458,7 +464,7 @@ export async function POST(request: Request): Promise<Response> {
             const groveResult = await uploadToGrove(
               resultBuffer,
               fileName,
-              walletAddress // Pass the wallet address for ACL
+              walletAddressForOverlay // Pass the wallet address for ACL
             );
 
             // Only set the Grove URI and URL if they're not empty
@@ -468,19 +474,19 @@ export async function POST(request: Request): Promise<Response> {
               logger.info("Successfully stored image in Grove", {
                 groveUri,
                 groveUrl,
-                walletAddress: walletAddress || "none",
+                walletAddress: walletAddressForOverlay || "none",
               });
             } else {
               logger.warn("Grove storage returned empty URI or URL", {
                 uri: groveResult.uri,
                 gatewayUrl: groveResult.gatewayUrl,
-                walletAddress: walletAddress || "none",
+                walletAddress: walletAddressForOverlay || "none",
               });
             }
           } catch (error) {
             logger.error("Failed to store image in Grove", {
               error: error instanceof Error ? error.message : String(error),
-              walletAddress: walletAddress || "none",
+              walletAddress: walletAddressForOverlay || "none",
             });
           }
         }

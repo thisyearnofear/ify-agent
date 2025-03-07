@@ -10,7 +10,7 @@ const DEFAULT_ALLOWED_USERS = [5254]; // @papa's FID
 // Cache the allowed users in memory to reduce Redis calls
 let cachedAllowedUsers: number[] | null = null;
 let cacheTimestamp = 0;
-const CACHE_TTL = 60 * 1000; // 1 minute
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes (increased from 1 minute)
 
 // Initialize Redis client with timeout and retry options
 const getRedisClient = () => {
@@ -21,13 +21,16 @@ const getRedisClient = () => {
 
   return new Redis(redisUrl, {
     connectTimeout: 5000, // 5 seconds
-    maxRetriesPerRequest: 2,
+    maxRetriesPerRequest: 1, // Reduced from 2 to fail faster
     retryStrategy: (times) => {
-      if (times > 3) {
-        return null; // Stop retrying after 3 attempts
+      if (times > 2) {
+        // Reduced from 3 to fail faster
+        return null; // Stop retrying after 2 attempts
       }
       return Math.min(times * 200, 1000); // Exponential backoff
     },
+    enableOfflineQueue: false, // Don't queue commands when disconnected
+    enableReadyCheck: false, // Skip the ready check to improve performance
   });
 };
 
@@ -48,43 +51,54 @@ export async function getAllowedUsers(): Promise<number[]> {
     const timeoutPromise = new Promise<null>((_, reject) => {
       setTimeout(() => {
         reject(new Error("Redis operation timed out"));
-      }, 3000); // 3 second timeout
+      }, 2000); // Reduced from 3 seconds to 2 seconds
     });
 
-    // Race the Redis operation against the timeout
-    const allowedUsersStr = (await Promise.race([
-      redis.get(ALLOWED_USERS_KEY),
-      timeoutPromise,
-    ])) as string | null;
+    try {
+      // Race the Redis operation against the timeout
+      const allowedUsersStr = (await Promise.race([
+        redis.get(ALLOWED_USERS_KEY),
+        timeoutPromise,
+      ])) as string | null;
 
-    // Close the Redis connection
-    await redis.quit().catch((err) => {
-      logger.error("Error closing Redis connection", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    });
-
-    if (!allowedUsersStr) {
-      // Initialize with default allowed users if not set
-      await setAllowedUsers(DEFAULT_ALLOWED_USERS).catch((err) => {
-        logger.error("Error setting default allowed users", {
+      // Close the Redis connection
+      await redis.quit().catch((err) => {
+        logger.error("Error closing Redis connection", {
           error: err instanceof Error ? err.message : String(err),
         });
       });
 
-      // Update cache
-      cachedAllowedUsers = DEFAULT_ALLOWED_USERS;
+      if (!allowedUsersStr) {
+        // Initialize with default allowed users if not set
+        await setAllowedUsers(DEFAULT_ALLOWED_USERS).catch((err) => {
+          logger.error("Error setting default allowed users", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+
+        // Update cache
+        cachedAllowedUsers = DEFAULT_ALLOWED_USERS;
+        cacheTimestamp = now;
+
+        return DEFAULT_ALLOWED_USERS;
+      }
+
+      // Parse and cache the result
+      const allowedUsers = JSON.parse(allowedUsersStr);
+      cachedAllowedUsers = allowedUsers;
       cacheTimestamp = now;
 
-      return DEFAULT_ALLOWED_USERS;
+      return allowedUsers;
+    } catch (error) {
+      // Close the Redis connection on error
+      redis.quit().catch((err) => {
+        logger.error("Error closing Redis connection after error", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+
+      throw error; // Re-throw to be caught by the outer try/catch
     }
-
-    // Parse and cache the result
-    const allowedUsers = JSON.parse(allowedUsersStr);
-    cachedAllowedUsers = allowedUsers;
-    cacheTimestamp = now;
-
-    return allowedUsers;
   } catch (error) {
     logger.error("Error getting allowed users", {
       error: error instanceof Error ? error.message : String(error),
@@ -104,37 +118,51 @@ export async function getAllowedUsers(): Promise<number[]> {
 // Set allowed users in Redis
 export async function setAllowedUsers(users: number[]): Promise<boolean> {
   try {
+    // Update cache immediately
+    cachedAllowedUsers = users;
+    cacheTimestamp = Date.now();
+
     const redis = getRedisClient();
 
     // Set a timeout for the Redis operation
     const timeoutPromise = new Promise<boolean>((_, reject) => {
       setTimeout(() => {
         reject(new Error("Redis operation timed out"));
-      }, 3000); // 3 second timeout
+      }, 2000); // Reduced from 3 seconds to 2 seconds
     });
 
-    // Race the Redis operation against the timeout
-    await Promise.race([
-      redis.set(ALLOWED_USERS_KEY, JSON.stringify(users)),
-      timeoutPromise,
-    ]);
+    try {
+      // Race the Redis operation against the timeout
+      await Promise.race([
+        redis.set(ALLOWED_USERS_KEY, JSON.stringify(users)),
+        timeoutPromise,
+      ]);
 
-    // Close the Redis connection
-    await redis.quit().catch((err) => {
-      logger.error("Error closing Redis connection", {
-        error: err instanceof Error ? err.message : String(err),
+      // Close the Redis connection
+      await redis.quit().catch((err) => {
+        logger.error("Error closing Redis connection", {
+          error: err instanceof Error ? err.message : String(err),
+        });
       });
-    });
 
-    // Update cache
-    cachedAllowedUsers = users;
-    cacheTimestamp = Date.now();
+      return true;
+    } catch (error) {
+      // Close the Redis connection on error
+      redis.quit().catch((err) => {
+        logger.error("Error closing Redis connection after error", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
 
-    return true;
+      throw error; // Re-throw to be caught by the outer try/catch
+    }
   } catch (error) {
     logger.error("Error setting allowed users", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return false;
+
+    // We still return true because we've updated the cache
+    // This ensures the API still works even if Redis fails
+    return true;
   }
 }

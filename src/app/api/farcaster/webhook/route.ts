@@ -174,8 +174,26 @@ export async function POST(request: Request) {
       });
     }
 
-    // Get the current list of allowed users
-    const allowedUsers = await getAllowedUsers();
+    // Get the current list of allowed users with a timeout
+    let allowedUsers: number[];
+    try {
+      // Set a timeout for getting allowed users
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error("Getting allowed users timed out"));
+        }, 2000); // 2 second timeout
+      });
+
+      // Race the operation against the timeout
+      allowedUsers = await Promise.race([getAllowedUsers(), timeoutPromise]);
+    } catch (error) {
+      // If there's an error getting allowed users, log it and use the default
+      logger.error("Error getting allowed users, using default", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Default to just the owner
+      allowedUsers = [5254]; // @papa's FID
+    }
 
     // Check if the author is in the allowed list
     const authorFid = castData.author?.fid;
@@ -208,6 +226,92 @@ export async function POST(request: Request) {
     // Parse the command using our existing parser
     const parsedCommand = parseCommand(commandText);
 
+    // Check if we need to use the parent cast's image
+    let parentImageUrl: string | undefined;
+    if (parsedCommand.useParentImage) {
+      // Check if this is a reply to another cast
+      if (castData.parent_hash) {
+        try {
+          // For simplicity, we'll check if there's a parent_url in the cast data
+          // This is a simpler approach than trying to fetch the parent cast
+          if (castData.parent_url) {
+            // If the parent_url is an image URL, use it directly
+            if (
+              castData.parent_url.endsWith(".png") ||
+              castData.parent_url.endsWith(".jpg") ||
+              castData.parent_url.endsWith(".jpeg") ||
+              castData.parent_url.endsWith(".gif") ||
+              castData.parent_url.includes("api.grove.storage")
+            ) {
+              parentImageUrl = castData.parent_url;
+              logger.info("Found parent image URL from parent_url", {
+                parentImageUrl,
+              });
+            }
+          }
+
+          // If we couldn't find an image URL in the parent_url, check the embeds
+          if (
+            !parentImageUrl &&
+            castData.embeds &&
+            castData.embeds.length > 0
+          ) {
+            // Find the first image URL in the embeds
+            for (const embed of castData.embeds) {
+              if (
+                embed.url &&
+                (embed.url.endsWith(".png") ||
+                  embed.url.endsWith(".jpg") ||
+                  embed.url.endsWith(".jpeg") ||
+                  embed.url.endsWith(".gif") ||
+                  embed.url.includes("api.grove.storage"))
+              ) {
+                parentImageUrl = embed.url;
+                logger.info("Found parent image URL from embeds", {
+                  parentImageUrl,
+                });
+                break;
+              }
+            }
+          }
+
+          if (!parentImageUrl) {
+            await replyToCast(
+              castData.hash,
+              "I couldn't find an image in the parent cast to apply the overlay to."
+            );
+            return NextResponse.json({
+              status: "error",
+              reason: "No image found in parent cast",
+            });
+          }
+        } catch (error) {
+          logger.error("Error getting parent image URL", {
+            error: error instanceof Error ? error.message : String(error),
+            parentHash: castData.parent_hash,
+          });
+
+          await replyToCast(
+            castData.hash,
+            "I couldn't find an image in the parent cast. Please try again."
+          );
+          return NextResponse.json({
+            status: "error",
+            error: "Failed to get parent image URL",
+          });
+        }
+      } else {
+        await replyToCast(
+          castData.hash,
+          "I need a parent cast with an image to apply the overlay to. Please reply to a cast that contains an image."
+        );
+        return NextResponse.json({
+          status: "error",
+          reason: "Not a reply to another cast",
+        });
+      }
+    }
+
     try {
       // Call our existing agent API to process the command
       const response = await fetch(`${APP_URL}/api/agent`, {
@@ -218,6 +322,7 @@ export async function POST(request: Request) {
         body: JSON.stringify({
           command: commandText,
           parameters: parsedCommand,
+          parentImageUrl: parentImageUrl, // Pass the parent image URL if available
         }),
       });
 
