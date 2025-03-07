@@ -3,6 +3,7 @@ import { parseCommand } from "@/lib/command-parser";
 import { logger } from "@/lib/logger";
 import { NeynarAPIClient } from "@neynar/nodejs-sdk";
 import { getAllowedUsers } from "@/lib/farcaster-allowed-users";
+import { createHmac } from "crypto";
 
 // Mark as dynamic to prevent static optimization
 export const dynamic = "force-dynamic";
@@ -12,6 +13,7 @@ const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
 const SIGNER_UUID = process.env.FARCASTER_SIGNER_UUID;
 const BOT_FID = process.env.FARCASTER_BOT_FID;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+const WEBHOOK_SECRET = process.env.NEYNAR_WEBHOOK_SECRET;
 
 // Define types for Farcaster profiles
 interface FarcasterProfile {
@@ -87,10 +89,64 @@ const formatErrorMessage = (error: string): string => {
   return `Error: ${error}`;
 };
 
+// Verify webhook signature
+const verifyWebhookSignature = (
+  signature: string | null,
+  rawBody: string
+): boolean => {
+  if (!signature) {
+    logger.error("Missing X-Neynar-Signature header");
+    return false;
+  }
+
+  if (!WEBHOOK_SECRET) {
+    logger.error("NEYNAR_WEBHOOK_SECRET is not defined");
+    return false;
+  }
+
+  try {
+    const hmac = createHmac("sha512", WEBHOOK_SECRET);
+    hmac.update(rawBody);
+    const generatedSignature = hmac.digest("hex");
+
+    const isValid = generatedSignature === signature;
+
+    if (!isValid) {
+      logger.error("Invalid webhook signature", {
+        receivedSignature: signature,
+        generatedSignature,
+      });
+    }
+
+    return isValid;
+  } catch (error) {
+    logger.error("Error verifying webhook signature", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
+};
+
 export async function POST(request: Request) {
   try {
+    // Get the raw request body for signature verification
+    const rawBody = await request.text();
+
+    // Verify the webhook signature
+    const signature = request.headers.get("X-Neynar-Signature");
+    const isSignatureValid = verifyWebhookSignature(signature, rawBody);
+
+    // Skip signature verification in development
+    if (!isSignatureValid && process.env.NODE_ENV === "production") {
+      logger.error("Invalid webhook signature");
+      return NextResponse.json(
+        { error: "Invalid webhook signature" },
+        { status: 401 }
+      );
+    }
+
     // Parse the webhook payload
-    const payload = await request.json();
+    const payload = JSON.parse(rawBody);
     logger.info("Received Farcaster webhook", {
       type: payload.type,
       hash: payload.data?.hash,

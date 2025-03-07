@@ -19,13 +19,36 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const allowedUsers = await getAllowedUsers();
+    // Set a timeout for the operation
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error("Operation timed out"));
+      }, 5000); // 5 second timeout
+    });
+
+    // Race the operation against the timeout
+    const allowedUsers = await Promise.race([
+      getAllowedUsers(),
+      timeoutPromise,
+    ]);
 
     return NextResponse.json({ allowedUsers });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error("Error in GET /api/farcaster/allowed-users", {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage,
     });
+
+    // Return a more specific error message
+    if (errorMessage.includes("timed out")) {
+      return NextResponse.json(
+        {
+          error:
+            "The request timed out. This may be due to Redis connection issues.",
+        },
+        { status: 504 }
+      );
+    }
 
     return NextResponse.json(
       { error: "Internal server error" },
@@ -63,7 +86,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const success = await setAllowedUsers(users);
+    // Set a timeout for the operation
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error("Operation timed out"));
+      }, 5000); // 5 second timeout
+    });
+
+    // Race the operation against the timeout
+    const success = await Promise.race([
+      setAllowedUsers(users),
+      timeoutPromise,
+    ]);
 
     if (!success) {
       return NextResponse.json(
@@ -74,9 +108,21 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, users });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error("Error in POST /api/farcaster/allowed-users", {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage,
     });
+
+    // Return a more specific error message
+    if (errorMessage.includes("timed out")) {
+      return NextResponse.json(
+        {
+          error:
+            "The request timed out. This may be due to Redis connection issues.",
+        },
+        { status: 504 }
+      );
+    }
 
     return NextResponse.json(
       { error: "Internal server error" },
