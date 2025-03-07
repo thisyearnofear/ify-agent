@@ -54,7 +54,6 @@ function AgentContent() {
     null
   );
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [walletRequired, setWalletRequired] = useState(false);
   const { isConnected, address } = useAccount();
 
   // Helper function to proxy IPFS URLs to avoid CORS issues
@@ -86,7 +85,6 @@ function AgentContent() {
     setError("");
     setParsedCommand(null);
     setShowConfirmation(false);
-    setWalletRequired(false);
 
     try {
       // First, get the parsed command for confirmation
@@ -102,13 +100,6 @@ function AgentContent() {
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to parse command");
-      }
-
-      // Check if the command requires a wallet connection (lensify)
-      if (data.overlayMode === "lensify" && !isConnected) {
-        setWalletRequired(true);
-        setLoading(false);
-        return;
       }
 
       setParsedCommand(data);
@@ -293,26 +284,6 @@ function AgentContent() {
       {error && (
         <div className="p-4 mb-4 bg-red-100 border border-red-400 text-red-700 rounded text-center">
           {error}
-        </div>
-      )}
-
-      {walletRequired && (
-        <div className="p-4 mb-4 bg-yellow-100 border border-yellow-400 text-yellow-800 rounded text-center">
-          <h3 className="text-lg font-semibold mb-2">
-            Wallet Connection Required
-          </h3>
-          <p className="mb-3">
-            The &ldquo;lensify&rdquo; overlay requires a connected wallet to use
-            Grove storage.
-          </p>
-          <div className="flex justify-center">
-            <button
-              onClick={() => setWalletRequired(false)}
-              className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-            >
-              Dismiss
-            </button>
-          </div>
         </div>
       )}
 

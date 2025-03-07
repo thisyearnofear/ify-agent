@@ -107,22 +107,6 @@ export async function POST(request: Request): Promise<Response> {
       parsedCommand = parseCommand(command);
     }
 
-    // Check if lensify overlay is requested but no wallet address is provided
-    if (parsedCommand.overlayMode === "lensify" && !walletAddress) {
-      logger.warn("Lensify overlay requested without wallet connection", {
-        ip,
-        requestId,
-      });
-      return NextResponse.json(
-        {
-          error: "Wallet connection required for lensify overlay",
-          status: "failed",
-          id: requestId,
-        },
-        { status: 403 }
-      );
-    }
-
     // Override with explicit parameters if provided
     if (body.parameters) {
       if (body.parameters.baseImageUrl) {
@@ -460,12 +444,16 @@ export async function POST(request: Request): Promise<Response> {
         const resultUrl = `${baseUrl}/api/image?id=${resultId}`;
         const previewUrl = `${baseUrl}/api/image?id=${previewId}`;
 
-        // If this is a lensify overlay, store in Grove
+        // Store all images in Grove, not just lensify
         let groveUri, groveUrl;
-        if (parsedCommand.overlayMode === "lensify" && resultBuffer) {
-          logger.info("Storing lensify image in Grove");
+        if (resultBuffer) {
+          logger.info(
+            `Storing ${parsedCommand.overlayMode || "generated"} image in Grove`
+          );
           try {
-            const fileName = `lensify-${resultId}.png`;
+            const fileName = `${
+              parsedCommand.overlayMode || "generated"
+            }-${resultId}.png`;
             // Pass the wallet address to Grove if available
             const groveResult = await uploadToGrove(
               resultBuffer,
