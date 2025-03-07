@@ -216,6 +216,63 @@ The application integrates with Grove, a secure, flexible, onchain-controlled st
 - **Web3 Integration**: Images stored on Grove can be referenced in Web3 applications.
 - **Access Control**: Grove supports various access control mechanisms for uploaded content.
 
+## Farcaster Bot Integration
+
+The application includes a webhook endpoint that allows your existing Farcaster bot to leverage our image generation and overlay capabilities. When someone mentions your bot on Farcaster, it can process the command and reply with the generated image.
+
+### How It Works
+
+The Farcaster integration directly leverages our existing agent API:
+
+1. A user mentions your bot with a command on Farcaster (e.g., `@snel lensify a mountain landscape`)
+2. Neynar sends a webhook event to our `/api/farcaster/webhook` endpoint
+3. The webhook extracts the command and calls our agent API (`/api/agent`)
+4. The agent API processes the command using the same infrastructure that powers the web UI
+5. The webhook receives the result and replies to the original cast with the generated image
+
+This architecture ensures that your Farcaster bot provides the exact same capabilities as our web UI, with no duplication of logic.
+
+### Setup
+
+1. Create a Neynar account at [neynar.com](https://neynar.com) and get an API key
+2. Create a Farcaster bot and get a signer UUID
+3. Configure environment variables in your deployment:
+   ```
+   NEYNAR_API_KEY=your_neynar_api_key
+   FARCASTER_SIGNER_UUID=your_farcaster_signer_uuid
+   FARCASTER_BOT_FID=your_bot_fid
+   NEXT_PUBLIC_APP_URL=https://your-app-url.com
+   ```
+4. Set up a webhook in the Neynar dashboard:
+   - Event: `cast.created`
+   - Filter: `mentioned_fids` = your bot's FID
+   - Target URL: `https://your-app-url.com/api/farcaster/webhook`
+
+### Usage
+
+Users can mention your bot in a cast with any command that works in the web UI:
+
+```
+@snel lensify a mountain landscape. scale to 0.3.
+```
+
+The bot supports all the same commands as the web UI, including:
+
+- Generating images with different prompts
+- Applying overlays (degenify, higherify, wowowify, scrollify, lensify)
+- Adjusting scale, position, color, and opacity
+
+### Testing
+
+You can test the webhook locally using the provided test script:
+
+```bash
+WEBHOOK_URL=http://localhost:3000/api/farcaster/webhook \
+FARCASTER_BOT_FID=123456 \
+COMMAND="lensify a mountain landscape" \
+node scripts/test-farcaster-webhook.js
+```
+
 ## Technologies Used
 
 - [Next.js 15](https://nextjs.org/)
