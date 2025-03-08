@@ -314,7 +314,7 @@ The allowlist is a list of Farcaster FIDs (Farcaster IDs) that are authorized to
    ```bash
    curl -X POST "https://your-app-url.com/api/farcaster/allowed-users?apiKey=YOUR_ADMIN_API_KEY" \
      -H "Content-Type: application/json" \
-     -d '{"users": [5254, 8685, 12345]}'
+     -d '{"users": [5254, 8685, 323496, 7316]}'
    ```
 
    This will replace the existing allowlist with the new list of FIDs. Make sure to include all existing FIDs you want to keep, plus any new ones.

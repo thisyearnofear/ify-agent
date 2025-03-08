@@ -6,6 +6,7 @@ import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { wagmiConfig } from "@/components/providers/WagmiConfig";
 import Image from "next/image";
 import { logger } from "@/lib/logger";
+import { encodeFunctionData, parseAbiItem } from "viem";
 
 // Define types for Farcaster context
 interface FarcasterUser {
@@ -39,10 +40,12 @@ interface MintResult {
 }
 
 // Deployed contract address on Mantle Sepolia
-const CONTRACT_ADDRESS = "0xfbe99dcd3b2d93b1c8ffabc26427383daaba05d1";
+const CONTRACT_ADDRESS = "0x8b62d610c83c42ea8a8fc10f80581d9b7701cd37";
 
-// Add this constant after CONTRACT_ADDRESS
-const MINT_FUNCTION_SELECTOR = "0x731133e9"; // selector for mintNFT(address,address,string,string)
+// Contract ABI fragment for the mint function
+const MINT_FUNCTION = parseAbiItem(
+  "function mintNFT(address to, address creator, string groveUrl, string tokenURI) returns (uint256)"
+);
 
 export default function FrameContent() {
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
@@ -170,21 +173,17 @@ export default function FrameContent() {
 
       const walletAddress = accounts[0];
 
-      // Create the transaction data with properly encoded parameters
-      const data =
-        MINT_FUNCTION_SELECTOR +
-        // Remove '0x' prefix and pad addresses to 32 bytes
-        walletAddress.slice(2).padStart(64, "0") +
-        walletAddress.slice(2).padStart(64, "0") +
-        // Convert strings to hex and pad to 32 bytes
-        Buffer.from(groveUrl).toString("hex").padEnd(64, "0") +
-        Buffer.from(metadataUri).toString("hex").padEnd(64, "0");
+      // Encode the function call
+      const data = encodeFunctionData({
+        abi: [MINT_FUNCTION],
+        args: [walletAddress, walletAddress, groveUrl, metadataUri],
+      });
 
       // Prepare transaction
       const txParams = {
         from: walletAddress,
         to: CONTRACT_ADDRESS,
-        data: "0x" + data,
+        data,
         value: "0x0",
       };
 
@@ -308,7 +307,7 @@ export default function FrameContent() {
                 className="w-full py-2 px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm"
                 onClick={handleOpenGroveUrl}
               >
-                View on Grove
+                Grove
               </button>
             )}
 
@@ -338,7 +337,7 @@ export default function FrameContent() {
                     className="text-blue-400 hover:text-blue-300 underline"
                     onClick={handleOpenExplorerUrl}
                   >
-                    View on Mantle Explorer
+                    Explorer
                   </button>
                 )}
               </div>

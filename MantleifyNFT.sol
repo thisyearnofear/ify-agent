@@ -19,33 +19,10 @@ contract MantleifyNFT is ERC721URIStorage, Ownable {
     // Mapping from Grove URL to token ID (to prevent duplicate minting)
     mapping(string => uint256) public groveUrlToTokenId;
     
-    // Authorized minters (your backend services)
-    mapping(address => bool) public authorizedMinters;
-    
     // Events
     event MantleifyNFTMinted(uint256 indexed tokenId, address indexed creator, string groveUrl, string tokenURI);
-    event MinterAuthorized(address indexed minter);
-    event MinterRevoked(address indexed minter);
     
     constructor() ERC721("Mantleify Collection", "MANTLE") Ownable(msg.sender) {}
-    
-    /**
-     * @dev Authorizes an address to mint NFTs
-     * @param minter Address to authorize
-     */
-    function authorizeMinter(address minter) external onlyOwner {
-        authorizedMinters[minter] = true;
-        emit MinterAuthorized(minter);
-    }
-    
-    /**
-     * @dev Revokes minting authorization from an address
-     * @param minter Address to revoke
-     */
-    function revokeMinter(address minter) external onlyOwner {
-        authorizedMinters[minter] = false;
-        emit MinterRevoked(minter);
-    }
     
     /**
      * @dev Checks if a Grove URL has already been minted
@@ -70,7 +47,6 @@ contract MantleifyNFT is ERC721URIStorage, Ownable {
         string calldata groveUrl,
         string calldata tokenURI
     ) external returns (uint256) {
-        require(authorizedMinters[msg.sender] || owner() == msg.sender, "Not authorized to mint");
         require(!isGroveUrlMinted(groveUrl), "This Grove URL has already been minted");
         
         _tokenIds.increment();

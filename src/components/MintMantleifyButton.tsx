@@ -2,13 +2,15 @@
 
 import { useState, useCallback } from "react";
 import { useAccount } from "wagmi";
-import { encodeAbiParameters, parseAbiParameters } from "viem";
+import { encodeFunctionData, parseAbiItem } from "viem";
 
 // Deployed contract address on Mantle Sepolia
-const CONTRACT_ADDRESS = "0xfbe99dcd3b2d93b1c8ffabc26427383daaba05d1";
+const CONTRACT_ADDRESS = "0x8b62d610c83c42ea8a8fc10f80581d9b7701cd37";
 
-// Contract ABI for the mint function
-const MINT_FUNCTION_SELECTOR = "0x731133e9"; // selector for mintNFT(address,address,string,string)
+// Contract ABI fragment for the mint function
+const MINT_FUNCTION = parseAbiItem(
+  "function mintNFT(address to, address creator, string groveUrl, string tokenURI) returns (uint256)"
+);
 
 interface MintMantleifyButtonProps {
   groveUrl: string;
@@ -46,20 +48,17 @@ export default function MintMantleifyButton({
 
       const walletAddress = accounts[0];
 
-      // Encode function parameters according to Solidity ABI spec
-      const encodedParams = encodeAbiParameters(
-        parseAbiParameters("address, address, string, string"),
-        [walletAddress, walletAddress, groveUrl, metadataUri]
-      );
-
-      // Create the transaction data
-      const data = MINT_FUNCTION_SELECTOR + encodedParams.slice(2); // remove '0x' from encoded params
+      // Encode the function call
+      const data = encodeFunctionData({
+        abi: [MINT_FUNCTION],
+        args: [walletAddress, walletAddress, groveUrl, metadataUri],
+      });
 
       // Prepare transaction
       const txParams = {
         from: walletAddress,
         to: CONTRACT_ADDRESS,
-        data: "0x" + data,
+        data,
         value: "0x0",
       };
 
