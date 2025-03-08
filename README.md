@@ -253,6 +253,18 @@ The second capability is particularly powerful as it allows users to apply overl
 - If you want to use an image from a specific cast, always reply to that cast and mention the bot with your overlay command.
 - If no image is found in the relevant cast, the bot will generate a new image based on your text prompt.
 
+#### Command Recognition
+
+The bot is designed to only generate or modify images when specific keywords are present in your command. This prevents the bot from responding with images when you're just mentioning it in conversation.
+
+Keywords that trigger image generation:
+
+- **Overlay modes**: `degenify`, `higherify`, `scrollify`, `lensify`, `overlay`
+- **Generation terms**: `generate`, `create`, `make`, `draw`
+- **Image references**: `this image`, `apply to`, `add to`, `put on`
+
+If you mention the bot without using any of these keywords, it will respond with a helpful message instead of generating an image.
+
 ### Example Commands
 
 Here are some example commands you can use with the bot:
@@ -319,6 +331,32 @@ This approach ensures that your images remain accessible long after the interact
 ### Access Control
 
 By default, the bot is configured to respond only to authorized users. This is managed through a Redis-based allowed users list, which can be updated via the admin API. This ensures that the bot's resources are used only by approved users during testing and early deployment phases.
+
+#### Managing the Allowlist
+
+The allowlist is a list of Farcaster FIDs (Farcaster IDs) that are authorized to use the bot. You can manage this list using the admin API:
+
+1. **View the current allowlist**:
+
+   ```bash
+   curl "https://your-app-url.com/api/farcaster/allowed-users?apiKey=YOUR_ADMIN_API_KEY"
+   ```
+
+2. **Add users to the allowlist**:
+
+   ```bash
+   curl -X POST "https://your-app-url.com/api/farcaster/allowed-users?apiKey=YOUR_ADMIN_API_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"users": [5254, 8685, 12345]}'
+   ```
+
+   This will replace the existing allowlist with the new list of FIDs. Make sure to include all existing FIDs you want to keep, plus any new ones.
+
+3. **Find a user's FID**:
+   - You can find a user's FID by visiting their Warpcast profile and looking at the URL: `https://warpcast.com/username`
+   - Or by using the Neynar API: `curl -H "api_key: YOUR_NEYNAR_API_KEY" "https://api.neynar.com/v2/farcaster/user/search?q=username"`
+
+The `ADMIN_API_KEY` is set as an environment variable in your deployment. Make sure to keep this key secure and only share it with trusted administrators.
 
 ### Testing
 

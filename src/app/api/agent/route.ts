@@ -527,102 +527,91 @@ export async function POST(request: Request): Promise<Response> {
         // Store all images in Grove, not just lensify
         let groveUri, groveUrl;
         if (resultBuffer) {
-          // Check if this request is coming from Farcaster webhook
-          const isFarcasterRequest =
-            isFarcaster ||
-            request.headers
-              .get("referer")
-              ?.includes("/api/farcaster/webhook") ||
-            request.headers.get("x-source") === "farcaster-webhook";
-
           logger.info(
-            `Storing ${
-              parsedCommand.overlayMode || "generated"
-            } image in Grove`,
-            {
-              isFarcasterRequest,
-              overlayMode: parsedCommand.overlayMode || "generated",
-            }
+            `Storing ${parsedCommand.overlayMode || "generated"} image in Grove`
           );
+          try {
+            const fileName = `${
+              parsedCommand.overlayMode || "generated"
+            }-${resultId}.png`;
 
-          // Try up to 3 times for Farcaster requests
-          const maxRetries = isFarcasterRequest ? 3 : 1;
-          let retryCount = 0;
-          let uploadSuccess = false;
+            // Check if this request is coming from Farcaster webhook
+            const isFarcasterRequest =
+              isFarcaster ||
+              request.headers
+                .get("referer")
+                ?.includes("/api/farcaster/webhook") ||
+              request.headers.get("x-source") === "farcaster-webhook";
 
-          while (retryCount < maxRetries && !uploadSuccess) {
-            try {
-              // Use a different filename for each retry
-              const fileName =
-                retryCount === 0
-                  ? `${
-                      parsedCommand.overlayMode || "generated"
-                    }-${resultId}.png`
-                  : `retry${retryCount}-${
-                      parsedCommand.overlayMode || "generated"
-                    }-${resultId}.png`;
-
-              if (retryCount > 0) {
-                logger.info(`Retry attempt ${retryCount} for Grove storage`, {
-                  fileName,
-                });
-              }
-
-              // Upload to Grove with a longer timeout for Farcaster requests
-              const groveResult = await uploadToGrove(
-                resultBuffer,
-                fileName,
-                walletAddressForOverlay,
-                isFarcasterRequest ? 15000 : 10000 // Longer timeout for Farcaster
+            if (isFarcasterRequest) {
+              logger.info(
+                "Request is from Farcaster webhook, prioritizing Grove storage"
               );
+            }
 
-              // Check if we got valid results
-              if (groveResult.uri && groveResult.gatewayUrl) {
-                groveUri = groveResult.uri;
-                groveUrl = groveResult.gatewayUrl;
-                uploadSuccess = true;
+            // Always attempt Grove storage, even without a wallet address
+            // This is especially important for Farcaster integration
+            const groveResult = await uploadToGrove(
+              resultBuffer,
+              fileName,
+              walletAddressForOverlay // Pass the wallet address for ACL if available
+            );
 
-                logger.info("Successfully stored image in Grove", {
-                  groveUri,
-                  groveUrl,
-                  retryCount,
-                  walletAddress: walletAddressForOverlay || "none",
-                  isFarcasterRequest,
-                });
-              } else {
-                logger.warn("Grove storage returned empty URI or URL", {
-                  uri: groveResult.uri,
-                  gatewayUrl: groveResult.gatewayUrl,
-                  retryCount,
-                  isFarcasterRequest,
-                });
-
-                // Only retry if this is a Farcaster request
-                if (!isFarcasterRequest) break;
-              }
-            } catch (error) {
-              logger.error("Error uploading to Grove", {
-                error: error instanceof Error ? error.message : String(error),
-                retryCount,
-                isFarcasterRequest,
+            // Only set the Grove URI and URL if they're not empty
+            if (groveResult.uri && groveResult.gatewayUrl) {
+              groveUri = groveResult.uri;
+              groveUrl = groveResult.gatewayUrl;
+              logger.info("Successfully stored image in Grove", {
+                groveUri,
+                groveUrl,
+                walletAddress: walletAddressForOverlay || "none",
+                isFarcasterRequest: isFarcasterRequest || false,
+              });
+            } else {
+              logger.warn("Grove storage returned empty URI or URL", {
+                uri: groveResult.uri,
+                gatewayUrl: groveResult.gatewayUrl,
+                walletAddress: walletAddressForOverlay || "none",
+                isFarcasterRequest: isFarcasterRequest || false,
               });
 
-              // Only retry if this is a Farcaster request
-              if (!isFarcasterRequest) break;
-            }
+              // If this is a Farcaster request and Grove storage failed, try again
+              if (isFarcasterRequest) {
+                logger.info("Retrying Grove storage for Farcaster request");
+                try {
+                  // Try again with a different file name
+                  const retryFileName = `retry-${
+                    parsedCommand.overlayMode || "generated"
+                  }-${resultId}.png`;
 
-            retryCount++;
-          }
+                  const retryResult = await uploadToGrove(
+                    resultBuffer,
+                    retryFileName
+                  );
 
-          // If we failed to get a Grove URL for a Farcaster request, log a critical error
-          if (isFarcasterRequest && !uploadSuccess) {
-            logger.error(
-              "CRITICAL: Failed to get Grove URL for Farcaster request after all retries",
-              {
-                requestId,
-                overlayMode: parsedCommand.overlayMode || "generated",
+                  if (retryResult.uri && retryResult.gatewayUrl) {
+                    groveUri = retryResult.uri;
+                    groveUrl = retryResult.gatewayUrl;
+                    logger.info("Successfully stored image in Grove on retry", {
+                      groveUri,
+                      groveUrl,
+                    });
+                  }
+                } catch (retryError) {
+                  logger.error("Failed to store image in Grove on retry", {
+                    error:
+                      retryError instanceof Error
+                        ? retryError.message
+                        : String(retryError),
+                  });
+                }
               }
-            );
+            }
+          } catch (error) {
+            logger.error("Failed to store image in Grove", {
+              error: error instanceof Error ? error.message : String(error),
+              walletAddress: walletAddressForOverlay || "none",
+            });
           }
         }
 

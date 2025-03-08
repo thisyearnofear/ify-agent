@@ -37,6 +37,37 @@ const extractCommand = (text: string): string => {
   return text.replace(/@\w+/g, "").trim();
 };
 
+// Check if a command is requesting an image generation or overlay
+const isImageGenerationCommand = (command: string): boolean => {
+  const lowerCommand = command.toLowerCase();
+
+  // Check for overlay mode keywords
+  const hasOverlayKeyword =
+    lowerCommand.includes("degenify") ||
+    lowerCommand.includes("higherify") ||
+    lowerCommand.includes("scrollify") ||
+    lowerCommand.includes("lensify") ||
+    lowerCommand.includes("overlay");
+
+  // Check for generation keywords
+  const hasGenerationKeyword =
+    lowerCommand.includes("generate") ||
+    lowerCommand.includes("create") ||
+    lowerCommand.includes("make") ||
+    lowerCommand.includes("draw") ||
+    (lowerCommand.includes("image") &&
+      (lowerCommand.includes("of") || lowerCommand.includes("with")));
+
+  // Check for image manipulation keywords
+  const hasManipulationKeyword =
+    lowerCommand.includes("apply to") ||
+    lowerCommand.includes("add to") ||
+    lowerCommand.includes("put on") ||
+    lowerCommand.includes("this image");
+
+  return hasOverlayKeyword || hasGenerationKeyword || hasManipulationKeyword;
+};
+
 // Check if a URL is an image URL
 const isImageUrl = (url: string): boolean => {
   if (!url) return false;
@@ -288,6 +319,30 @@ export async function POST(request: Request) {
         "I didn't understand that command. Try something like '@snel lensify a mountain landscape. scale to 0.3.'"
       );
       return NextResponse.json({ status: "error", reason: "Empty command" });
+    }
+
+    // Check if this is actually an image generation command
+    if (!isImageGenerationCommand(commandText)) {
+      logger.info(
+        "Not an image generation command, responding with help message",
+        {
+          command: commandText,
+        }
+      );
+
+      await replyToCast(
+        castData.hash,
+        "Hi there! I'm Snel, a bot that can generate and modify images. Try commands like:\n\n" +
+          "• '@snel higherify a mountain landscape'\n" +
+          "• '@snel degenify this image' (when replying to a cast with an image)\n" +
+          "• '@snel scrollify a tech background. scale to 0.5'\n\n" +
+          "Powered by Venice AI & Grove"
+      );
+
+      return NextResponse.json({
+        status: "success",
+        reason: "Responded with help message",
+      });
     }
 
     logger.info("Processing Farcaster command", { commandText });

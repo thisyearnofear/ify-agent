@@ -19,14 +19,12 @@ interface GroveUploadResponse {
  * @param imageBuffer The image buffer to upload
  * @param fileName Optional file name
  * @param walletAddress Optional wallet address for ACL
- * @param timeoutMs Optional timeout in milliseconds (default: 10000)
  * @returns The URI and URL of the uploaded image
  */
 export async function uploadToGrove(
   imageBuffer: Buffer,
   fileName: string = "image.png",
-  walletAddress?: string,
-  timeoutMs: number = 10000
+  walletAddress?: string
 ): Promise<{
   uri: string;
   gatewayUrl: string;
@@ -35,7 +33,6 @@ export async function uploadToGrove(
     logger.info("Uploading image to Grove storage", {
       fileName,
       walletAddress: walletAddress || "none",
-      timeoutMs,
     });
 
     // Create a File object from the buffer
@@ -52,11 +49,8 @@ export async function uploadToGrove(
     // Add a timeout to prevent hanging
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(
-        () =>
-          reject(
-            new Error(`Grove upload timeout after ${timeoutMs / 1000} seconds`)
-          ),
-        timeoutMs
+        () => reject(new Error("Grove upload timeout after 10 seconds")),
+        10000
       );
     });
 
