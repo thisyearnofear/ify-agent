@@ -93,6 +93,16 @@ export async function POST(request: Request): Promise<Response> {
     // Extract wallet address for Grove storage
     const walletAddressForOverlay = body.walletAddress as string;
     const parentImageUrl = body.parentImageUrl; // Extract parent image URL
+    const isFarcaster = body.isFarcaster === true; // Check if request is from Farcaster
+
+    // If this is a Farcaster request, log it
+    if (isFarcaster) {
+      logger.info("Processing request from Farcaster webhook", {
+        ip,
+        command: command?.substring(0, 100) || "No command",
+        hasParentImage: !!parentImageUrl,
+      });
+    }
 
     // Parse the command if not provided explicitly
     let parsedCommand: ParsedCommand;
@@ -527,6 +537,7 @@ export async function POST(request: Request): Promise<Response> {
 
             // Check if this request is coming from Farcaster webhook
             const isFarcasterRequest =
+              isFarcaster ||
               request.headers
                 .get("referer")
                 ?.includes("/api/farcaster/webhook") ||
@@ -563,6 +574,38 @@ export async function POST(request: Request): Promise<Response> {
                 walletAddress: walletAddressForOverlay || "none",
                 isFarcasterRequest: isFarcasterRequest || false,
               });
+
+              // If this is a Farcaster request and Grove storage failed, try again
+              if (isFarcasterRequest) {
+                logger.info("Retrying Grove storage for Farcaster request");
+                try {
+                  // Try again with a different file name
+                  const retryFileName = `retry-${
+                    parsedCommand.overlayMode || "generated"
+                  }-${resultId}.png`;
+
+                  const retryResult = await uploadToGrove(
+                    resultBuffer,
+                    retryFileName
+                  );
+
+                  if (retryResult.uri && retryResult.gatewayUrl) {
+                    groveUri = retryResult.uri;
+                    groveUrl = retryResult.gatewayUrl;
+                    logger.info("Successfully stored image in Grove on retry", {
+                      groveUri,
+                      groveUrl,
+                    });
+                  }
+                } catch (retryError) {
+                  logger.error("Failed to store image in Grove on retry", {
+                    error:
+                      retryError instanceof Error
+                        ? retryError.message
+                        : String(retryError),
+                  });
+                }
+              }
             }
           } catch (error) {
             logger.error("Failed to store image in Grove", {

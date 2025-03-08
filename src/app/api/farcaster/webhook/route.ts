@@ -297,91 +297,93 @@ export async function POST(request: Request) {
 
     // Check if we need to use the parent cast's image
     let parentImageUrl: string | undefined;
-    if (parsedCommand.useParentImage) {
-      // Check if this is a reply to another cast
-      if (castData.parent_hash) {
+    const currentCastImageUrl = extractImageUrlFromCast(castData);
+
+    // First, check if the current cast has an image
+    if (currentCastImageUrl) {
+      logger.info("Found image in current cast", {
+        imageUrl: currentCastImageUrl,
+      });
+    }
+
+    // If useParentImage flag is set and this is a reply to another cast, check parent cast
+    if (parsedCommand.useParentImage && castData.parent_hash) {
+      try {
+        // Initialize Neynar client
+        const neynarClient = getNeynarClient();
+
+        logger.info("Fetching parent cast to find image", {
+          parentHash: castData.parent_hash,
+        });
+
         try {
-          // Initialize Neynar client
-          const neynarClient = getNeynarClient();
-
-          // First, try to extract image from the current cast data
-          parentImageUrl = extractImageUrlFromCast(castData);
-
-          // If no image found in the current cast data, try to fetch the parent cast
-          if (!parentImageUrl) {
-            logger.info("Fetching parent cast to find image", {
-              parentHash: castData.parent_hash,
+          // Use lookupCastByHashOrWarpcastUrl to get the parent cast
+          const parentCastResponse =
+            await neynarClient.lookupCastByHashOrWarpcastUrl({
+              identifier: castData.parent_hash,
+              type: "hash",
             });
 
-            try {
-              // Use lookupCastByHashOrWarpcastUrl to get the parent cast
-              const parentCastResponse =
-                await neynarClient.lookupCastByHashOrWarpcastUrl({
-                  identifier: castData.parent_hash,
-                  type: "hash",
-                });
+          if (parentCastResponse && parentCastResponse.cast) {
+            // Extract image URL from the parent cast
+            parentImageUrl = extractImageUrlFromCast(parentCastResponse.cast);
 
-              if (parentCastResponse && parentCastResponse.cast) {
-                // Extract image URL from the parent cast
-                parentImageUrl = extractImageUrlFromCast(
-                  parentCastResponse.cast
-                );
-
-                if (parentImageUrl) {
-                  logger.info("Found image URL in parent cast", {
-                    parentImageUrl,
-                  });
-                }
-              }
-            } catch (error) {
-              logger.error("Error fetching parent cast", {
-                error: error instanceof Error ? error.message : String(error),
-                parentHash: castData.parent_hash,
+            if (parentImageUrl) {
+              logger.info("Found image URL in parent cast", {
+                parentImageUrl,
               });
             }
           }
-
-          if (!parentImageUrl) {
-            await replyToCast(
-              castData.hash,
-              "I couldn't find an image in the parent cast to apply the overlay to. Please make sure the cast you're replying to contains an image."
-            );
-            return NextResponse.json({
-              status: "error",
-              reason: "No image found in parent cast",
-            });
-          }
         } catch (error) {
-          logger.error("Error getting parent image URL", {
+          logger.error("Error fetching parent cast", {
             error: error instanceof Error ? error.message : String(error),
             parentHash: castData.parent_hash,
           });
+        }
 
+        // If we couldn't find an image in the parent cast and there's no image in the current cast
+        if (!parentImageUrl && !currentCastImageUrl) {
           await replyToCast(
             castData.hash,
-            "I couldn't find an image in the parent cast. Please try again with a cast that contains an image."
+            "I couldn't find an image in the parent cast to apply the overlay to. Please make sure the cast you're replying to contains an image."
           );
           return NextResponse.json({
             status: "error",
-            error: "Failed to get parent image URL",
+            reason: "No image found in parent cast",
           });
         }
-      } else {
-        // Check if the current cast has an image
-        parentImageUrl = extractImageUrlFromCast(castData);
+      } catch (error) {
+        logger.error("Error getting parent image URL", {
+          error: error instanceof Error ? error.message : String(error),
+          parentHash: castData.parent_hash,
+        });
 
-        if (!parentImageUrl) {
-          await replyToCast(
-            castData.hash,
-            "I need a cast with an image to apply the overlay to. Please either include an image in your cast or reply to a cast that contains an image."
-          );
-          return NextResponse.json({
-            status: "error",
-            reason: "No image found in current or parent cast",
-          });
-        }
+        await replyToCast(
+          castData.hash,
+          "I couldn't find an image in the parent cast. Please try again with a cast that contains an image."
+        );
+        return NextResponse.json({
+          status: "error",
+          error: "Failed to get parent image URL",
+        });
+      }
+    } else if (parsedCommand.useParentImage && !castData.parent_hash) {
+      // If useParentImage is set but this is not a reply to another cast
+      if (!currentCastImageUrl) {
+        await replyToCast(
+          castData.hash,
+          "I need a cast with an image to apply the overlay to. Please either include an image in your cast or reply to a cast that contains an image."
+        );
+        return NextResponse.json({
+          status: "error",
+          reason: "No image found in current or parent cast",
+        });
       }
     }
+
+    // Determine which image URL to use
+    // Precedence: Current cast image > Parent cast image
+    const imageUrlToUse = currentCastImageUrl || parentImageUrl;
 
     try {
       // Call our existing agent API to process the command
@@ -389,12 +391,13 @@ export async function POST(request: Request) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Source": "farcaster-webhook",
+          "X-Source": "farcaster-webhook", // Add a custom header to identify the source
         },
         body: JSON.stringify({
           command: commandText,
           parameters: parsedCommand,
-          parentImageUrl: parentImageUrl, // Pass the parent image URL if available
+          parentImageUrl: imageUrlToUse, // Pass the selected image URL
+          isFarcaster: true, // Flag to indicate this is a Farcaster request
         }),
       });
 
