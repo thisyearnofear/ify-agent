@@ -416,7 +416,7 @@ export async function POST(request: Request) {
       const overlayMode = parsedCommand.overlayMode || "generated";
       await replyToCast(
         castData.hash,
-        `✨ Here's your ${overlayMode} image!`,
+        `✨ Here's your ${overlayMode} image!\n\npowered by Venice AI & Grove`,
         imageUrl
       );
 

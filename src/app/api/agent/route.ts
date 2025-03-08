@@ -276,7 +276,7 @@ export async function POST(request: Request): Promise<Response> {
 
           logger.info("Generating image with Venice API", {
             prompt: parsedCommand.prompt,
-            model: "stable-diffusion-3.5",
+            model: "flux-dev",
           });
 
           const veniceResponse = await fetch(
@@ -289,7 +289,7 @@ export async function POST(request: Request): Promise<Response> {
               },
               body: JSON.stringify({
                 prompt: parsedCommand.prompt,
-                model: "stable-diffusion-3.5",
+                model: "flux-dev",
                 hide_watermark: true,
                 width: 512,
                 height: 512,
@@ -348,6 +348,7 @@ export async function POST(request: Request): Promise<Response> {
           logger.info("Generating default image for overlay", {
             overlayMode: parsedCommand.overlayMode,
             defaultPrompt,
+            model: "flux-dev",
           });
 
           const veniceResponse = await fetch(
@@ -360,7 +361,7 @@ export async function POST(request: Request): Promise<Response> {
               },
               body: JSON.stringify({
                 prompt: defaultPrompt,
-                model: "stable-diffusion-3.5",
+                model: "flux-dev",
                 hide_watermark: true,
                 width: 512,
                 height: 512,
@@ -520,37 +521,107 @@ export async function POST(request: Request): Promise<Response> {
           logger.info(
             `Storing ${parsedCommand.overlayMode || "generated"} image in Grove`
           );
-          try {
-            const fileName = `${
-              parsedCommand.overlayMode || "generated"
-            }-${resultId}.png`;
-            // Pass the wallet address to Grove if available
-            const groveResult = await uploadToGrove(
-              resultBuffer,
-              fileName,
-              walletAddressForOverlay // Pass the wallet address for ACL
-            );
 
-            // Only set the Grove URI and URL if they're not empty
-            if (groveResult.uri && groveResult.gatewayUrl) {
-              groveUri = groveResult.uri;
-              groveUrl = groveResult.gatewayUrl;
-              logger.info("Successfully stored image in Grove", {
-                groveUri,
-                groveUrl,
+          // For Farcaster integration, we need to make sure Grove storage works
+          // Try up to 3 times with increasing timeouts
+          const maxRetries = 3;
+          let retryCount = 0;
+          let lastError = null;
+
+          while (retryCount < maxRetries) {
+            try {
+              const fileName = `${
+                parsedCommand.overlayMode || "generated"
+              }-${resultId}.png`;
+
+              // Increase timeout for each retry
+              const timeout = 10000 + retryCount * 5000; // 10s, 15s, 20s
+
+              logger.info(
+                `Grove upload attempt ${retryCount + 1}/${maxRetries}`,
+                {
+                  fileName,
+                  timeout,
+                }
+              );
+
+              // Create a custom upload function with the current timeout
+              const uploadWithTimeout = async () => {
+                const uploadPromise = uploadToGrove(
+                  resultBuffer,
+                  fileName,
+                  walletAddressForOverlay
+                );
+
+                const timeoutPromise = new Promise<never>((_, reject) => {
+                  setTimeout(
+                    () =>
+                      reject(
+                        new Error(
+                          `Grove upload timeout after ${timeout / 1000} seconds`
+                        )
+                      ),
+                    timeout
+                  );
+                });
+
+                return Promise.race([uploadPromise, timeoutPromise]);
+              };
+
+              // Attempt the upload with the current timeout
+              const groveResult = await uploadWithTimeout();
+
+              // Only set the Grove URI and URL if they're not empty
+              if (groveResult.uri && groveResult.gatewayUrl) {
+                groveUri = groveResult.uri;
+                groveUrl = groveResult.gatewayUrl;
+                logger.info("Successfully stored image in Grove", {
+                  groveUri,
+                  groveUrl,
+                  attempt: retryCount + 1,
+                  walletAddress: walletAddressForOverlay || "none",
+                });
+
+                // Success, break out of retry loop
+                break;
+              } else {
+                // Empty result but no error thrown
+                logger.warn("Grove storage returned empty URI or URL", {
+                  uri: groveResult.uri,
+                  gatewayUrl: groveResult.gatewayUrl,
+                  attempt: retryCount + 1,
+                  walletAddress: walletAddressForOverlay || "none",
+                });
+
+                lastError = new Error("Empty Grove storage result");
+                retryCount++;
+
+                // Wait before retrying
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+              }
+            } catch (error) {
+              lastError = error;
+              logger.error("Failed to store image in Grove", {
+                error: error instanceof Error ? error.message : String(error),
+                attempt: retryCount + 1,
                 walletAddress: walletAddressForOverlay || "none",
               });
-            } else {
-              logger.warn("Grove storage returned empty URI or URL", {
-                uri: groveResult.uri,
-                gatewayUrl: groveResult.gatewayUrl,
-                walletAddress: walletAddressForOverlay || "none",
-              });
+
+              retryCount++;
+
+              // Wait before retrying
+              await new Promise((resolve) => setTimeout(resolve, 1000));
             }
-          } catch (error) {
-            logger.error("Failed to store image in Grove", {
-              error: error instanceof Error ? error.message : String(error),
-              walletAddress: walletAddressForOverlay || "none",
+          }
+
+          // If we exhausted all retries and still don't have a Grove URL, log a critical error
+          if (!groveUrl) {
+            logger.error("All Grove upload attempts failed", {
+              totalAttempts: retryCount,
+              lastError:
+                lastError instanceof Error
+                  ? lastError.message
+                  : String(lastError),
             });
           }
         }
@@ -564,12 +635,18 @@ export async function POST(request: Request): Promise<Response> {
           status: "completed",
           resultUrl,
           previewUrl,
-          groveUri,
-          groveUrl,
         };
 
+        // Add Grove information if available
+        if (groveUri) {
+          response.groveUri = groveUri;
+        }
+        if (groveUrl) {
+          response.groveUrl = groveUrl;
+        }
+
+        // Return the response with rate limit headers
         return NextResponse.json(response, {
-          status: 200,
           headers: responseHeaders,
         });
       } catch (error) {
