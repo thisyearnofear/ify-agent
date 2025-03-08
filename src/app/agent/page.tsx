@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Web3Provider } from "@/components/Web3Provider";
 import WalletConnect from "@/components/WalletConnect";
 import { useAccount } from "wagmi";
+import MintMantleifyButton from "@/components/MintMantleifyButton";
 
 // Loading indicator component
 const LoadingIndicator = () => (
@@ -54,41 +55,42 @@ function AgentContent() {
     null
   );
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const { isConnected, address } = useAccount();
+  const { isConnected } = useAccount();
 
-  // Helper function to proxy IPFS URLs to avoid CORS issues
+  // Check if URL has a command parameter
+  useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const cmdParam = params.get("cmd");
+      if (cmdParam) {
+        setCommand(decodeURIComponent(cmdParam));
+      }
+    }
+  });
+
+  // Function to proxy image URLs if needed
   const getProxiedUrl = (url: string): string => {
-    if (!url) return "";
-
-    // List of IPFS gateways that might need proxying
-    const ipfsGateways = [
-      "https://ipfs.io/ipfs/",
-      "https://gateway.ipfs.io/ipfs/",
-      "https://cloudflare-ipfs.com/ipfs/",
-      "https://lens.infura-ipfs.io/ipfs/",
-    ];
-
-    // Check if the URL is from any of the IPFS gateways
-    const isIpfsUrl = ipfsGateways.some((gateway) => url.startsWith(gateway));
-
-    if (isIpfsUrl) {
-      console.log("Proxying IPFS URL:", url);
+    // If it's an IPFS URL, proxy it
+    if (url.startsWith("https://ipfs.io/ipfs/")) {
       return `/api/proxy?url=${encodeURIComponent(url)}`;
     }
-
     return url;
   };
 
+  // Check if the command is using the mantleify overlay
+  const isMantleifyCommand = (cmd: string): boolean => {
+    return cmd.toLowerCase().includes("mantleify");
+  };
+
+  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError("");
-    setParsedCommand(null);
-    setShowConfirmation(false);
+    setResult(null);
 
     try {
-      // First, get the parsed command for confirmation
-      const response = await fetch("/api/agent/parse", {
+      // Parse the command first
+      const parseResponse = await fetch("/api/agent/parse", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -96,106 +98,54 @@ function AgentContent() {
         body: JSON.stringify({ command }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to parse command");
+      if (!parseResponse.ok) {
+        throw new Error(`Error: ${parseResponse.status}`);
       }
 
-      setParsedCommand(data);
+      const parsedData = await parseResponse.json();
+      setParsedCommand(parsedData);
       setShowConfirmation(true);
-      setLoading(false);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Unknown error");
-      setLoading(false);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to parse command. Please try again."
+      );
     }
   };
 
+  // Handle confirmation
   const handleConfirm = async () => {
+    if (!parsedCommand) return;
+
     setLoading(true);
     setError("");
-    setResult(null);
 
     try {
-      console.log("Sending request to API:", {
-        command,
-        parsedCommand,
-      });
-
-      // Include wallet address in the request if connected
-      const requestBody: {
-        command: string;
-        parameters: ParsedCommand | null;
-        walletAddress?: string;
-      } = {
-        command,
-        parameters: parsedCommand,
-      };
-
-      // Add wallet address if connected and using lensify
-      if (isConnected && parsedCommand?.overlayMode === "lensify") {
-        requestBody.walletAddress = address;
-      }
-
       const response = await fetch("/api/agent", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({ command }),
       });
 
-      // Check if the response is ok before trying to parse JSON
       if (!response.ok) {
-        const contentType = response.headers.get("content-type");
-
-        // If the response is JSON, try to parse it
-        if (contentType && contentType.includes("application/json")) {
-          try {
-            const errorData = await response.json();
-            throw new Error(
-              errorData.error || `Server error: ${response.status}`
-            );
-          } catch {
-            // If JSON parsing fails, use the status text
-            throw new Error(
-              `Server error: ${response.status} ${response.statusText}`
-            );
-          }
-        } else {
-          // If not JSON, get the text
-          const errorText = await response.text();
-          console.error("Non-JSON error response:", errorText);
-          throw new Error(
-            `Server error: ${response.status} - ${errorText.substring(
-              0,
-              100
-            )}...`
-          );
-        }
+        throw new Error(`Error: ${response.status}`);
       }
 
-      // If we get here, the response is ok, so try to parse JSON
-      try {
-        const data = await response.json();
-        setResult(data);
-      } catch (jsonError) {
-        console.error(
-          "Error parsing JSON from successful response:",
-          jsonError
-        );
-        const responseText = await response.text();
-        throw new Error(
-          `Failed to parse server response: ${responseText.substring(
-            0,
-            100
-          )}...`
-        );
+      const data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error);
       }
-    } catch (error) {
-      console.error("Request error:", error);
+
+      setResult(data);
+    } catch (err) {
       const errorMessage =
-        error instanceof Error ? error.message : "An unexpected error occurred";
+        err instanceof Error
+          ? err.message
+          : "Failed to process command. Please try again.";
 
       // Check for timeout or cold start scenarios
       if (
@@ -298,55 +248,59 @@ function AgentContent() {
               {parsedCommand.action === "generate" && (
                 <div>
                   <p className="mb-2 text-center">Generate an image of:</p>
-                  <div className="p-2 bg-gray-50 text-center border rounded font-medium">
-                    {parsedCommand.prompt}
-                  </div>
+                  <p className="text-center font-medium">
+                    {parsedCommand.prompt || "No prompt provided"}
+                  </p>
                 </div>
               )}
-
-              {parsedCommand.overlayMode && (
-                <p className="mt-3 text-center">
-                  Apply the{" "}
-                  <span className="font-semibold text-blue-600">
-                    {parsedCommand.overlayMode}
-                  </span>{" "}
-                  overlay
-                </p>
+              {parsedCommand.action === "overlay" && (
+                <div>
+                  <p className="mb-2 text-center">
+                    Apply the{" "}
+                    <span className="font-medium">
+                      {parsedCommand.overlayMode || "default"}
+                    </span>{" "}
+                    overlay to{" "}
+                    {parsedCommand.prompt
+                      ? "an image of:"
+                      : "the generated image"}
+                  </p>
+                  {parsedCommand.prompt && (
+                    <p className="text-center font-medium">
+                      {parsedCommand.prompt}
+                    </p>
+                  )}
+                </div>
               )}
-
-              {parsedCommand.controls &&
-                Object.keys(parsedCommand.controls).length > 0 && (
-                  <div className="mt-3">
-                    <p className="mb-2 text-center">With adjustments:</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {parsedCommand.controls.scale !== undefined && (
-                        <div className="p-2 bg-gray-50 border rounded">
-                          <strong>Scale:</strong> {parsedCommand.controls.scale}
-                        </div>
+              {parsedCommand.controls && (
+                <div className="mt-4 pt-4 border-t">
+                  <p className="mb-2 text-center">With these adjustments:</p>
+                  <ul className="text-sm">
+                    {parsedCommand.controls.scale !== undefined && (
+                      <li className="text-center">
+                        Scale: {parsedCommand.controls.scale}
+                      </li>
+                    )}
+                    {parsedCommand.controls.x !== undefined &&
+                      parsedCommand.controls.y !== undefined && (
+                        <li className="text-center">
+                          Position: {parsedCommand.controls.x},{" "}
+                          {parsedCommand.controls.y}
+                        </li>
                       )}
-                      {parsedCommand.controls.x !== undefined &&
-                        parsedCommand.controls.y !== undefined && (
-                          <div className="p-2 bg-gray-50 border rounded">
-                            <strong>Position:</strong>{" "}
-                            {parsedCommand.controls.x},{" "}
-                            {parsedCommand.controls.y}
-                          </div>
-                        )}
-                      {parsedCommand.controls.overlayColor && (
-                        <div className="p-2 bg-gray-50 border rounded">
-                          <strong>Color:</strong>{" "}
-                          {parsedCommand.controls.overlayColor}
-                        </div>
-                      )}
-                      {parsedCommand.controls.overlayAlpha !== undefined && (
-                        <div className="p-2 bg-gray-50 border rounded">
-                          <strong>Opacity:</strong>{" "}
-                          {parsedCommand.controls.overlayAlpha}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+                    {parsedCommand.controls.overlayColor && (
+                      <li className="text-center">
+                        Color: {parsedCommand.controls.overlayColor}
+                      </li>
+                    )}
+                    {parsedCommand.controls.overlayAlpha !== undefined && (
+                      <li className="text-center">
+                        Opacity: {parsedCommand.controls.overlayAlpha}
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
           <div className="flex justify-center gap-4">
@@ -401,6 +355,15 @@ function AgentContent() {
                   >
                     Grove
                   </a>
+
+                  {/* Add Mint as NFT button for mantleify images */}
+                  {isMantleifyCommand(command) &&
+                    result.groveUrl &&
+                    isConnected && (
+                      <div className="mt-2">
+                        <MintMantleifyButton groveUrl={result.groveUrl} />
+                      </div>
+                    )}
                 </div>
               )}
             </div>
@@ -438,7 +401,14 @@ function AgentContent() {
           <span className="font-mono">degenify</span>,{" "}
           <span className="font-mono">higherify</span>,{" "}
           <span className="font-mono">scrollify</span>,{" "}
-          <span className="font-mono">lensify</span>
+          <span className="font-mono">lensify</span>,{" "}
+          <span className="font-mono">higherise</span>,{" "}
+          <span className="font-mono">dickbuttify</span>,{" "}
+          <span className="font-mono">nikefy</span>,{" "}
+          <span className="font-mono">nounify</span>,{" "}
+          <span className="font-mono">baseify</span>,{" "}
+          <span className="font-mono">clankerify</span>,{" "}
+          <span className="font-mono">mantleify</span>
         </div>
         <div className="mt-3 p-3 bg-yellow-50 rounded border border-yellow-200 text-yellow-800 text-sm max-w-md mx-auto">
           <strong>Tip:</strong> Separate commands with periods for better
@@ -448,24 +418,20 @@ function AgentContent() {
             Higherify a cat wearing sunglasses. Opacity to 0.3. Color to green.
           </span>
         </div>
+        <div className="mt-3 p-3 bg-green-50 rounded border border-green-200 text-green-800 text-sm max-w-md mx-auto">
+          <strong>New!</strong> Use <span className="font-mono">mantleify</span>{" "}
+          to create images that can be minted as NFTs on Mantle Sepolia.
+          <br />
+          <span className="font-mono text-xs mt-1 block">
+            Mantleify a blockchain visualization. Scale to 0.5.
+          </span>
+        </div>
       </div>
-
-      {result && (
-        <details className="mt-4">
-          <summary className="cursor-pointer text-sm text-gray-600">
-            Debug Info
-          </summary>
-          <div className="p-4 bg-gray-100 rounded mt-2 overflow-auto max-h-60">
-            <pre className="text-xs">{JSON.stringify(result, null, 2)}</pre>
-          </div>
-        </details>
-      )}
     </div>
   );
 }
 
-// Export the wrapped component
-export default function AgentTest() {
+export default function AgentPage() {
   return (
     <Web3Provider>
       <AgentContent />

@@ -1,6 +1,8 @@
 "use client";
 
-import { WagmiProvider, createConfig, http } from "wagmi";
+import { ReactNode, useEffect, useState } from "react";
+import { ConnectKitProvider, getDefaultConfig } from "connectkit";
+import { createConfig, WagmiProvider, http } from "wagmi";
 import {
   mainnet,
   polygon,
@@ -9,21 +11,22 @@ import {
   zksync,
   linea,
   scroll,
-  sepolia,
 } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ConnectKitProvider, getDefaultConfig } from "connectkit";
-import { ReactNode } from "react";
 
 // Create a client for React Query
 const queryClient = new QueryClient();
 
-// Create a custom Lens Sepolia chain
+// Custom chain for Lens Sepolia
 const lensSepolia = {
-  ...sepolia,
-  id: 11155111, // Sepolia chain ID
+  id: 11155111,
   name: "Lens Sepolia",
   network: "lens-sepolia",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Sepolia Ether",
+    symbol: "ETH",
+  },
   rpcUrls: {
     default: {
       http: [
@@ -44,6 +47,32 @@ const lensSepolia = {
   },
 };
 
+// Custom chain for Mantle Sepolia
+const mantleSepolia = {
+  id: 5003,
+  name: "Mantle Sepolia",
+  network: "mantle-sepolia",
+  nativeCurrency: {
+    decimals: 18,
+    name: "MNT",
+    symbol: "MNT",
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://rpc.sepolia.mantle.xyz"],
+    },
+    public: {
+      http: ["https://rpc.sepolia.mantle.xyz"],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: "Mantle Sepolia Explorer",
+      url: "https://sepolia.mantlescan.xyz",
+    },
+  },
+};
+
 // Create a Wagmi config with ConnectKit's default configuration
 const config = createConfig(
   getDefaultConfig({
@@ -57,6 +86,7 @@ const config = createConfig(
       linea,
       scroll,
       lensSepolia,
+      mantleSepolia,
     ],
     transports: {
       // RPC URLs for each chain
@@ -80,37 +110,26 @@ const config = createConfig(
           process.env.NEXT_PUBLIC_ALCHEMY_ID || ""
         }`
       ),
-      [zksync.id]: http(
-        `https://zksync-mainnet.g.alchemy.com/v2/${
-          process.env.NEXT_PUBLIC_ALCHEMY_ID || ""
-        }`
-      ),
+      [zksync.id]: http("https://mainnet.era.zksync.io"),
       [linea.id]: http(
-        `https://linea-mainnet.g.alchemy.com/v2/${
-          process.env.NEXT_PUBLIC_ALCHEMY_ID || ""
+        `https://linea-mainnet.infura.io/v3/${
+          process.env.NEXT_PUBLIC_INFURA_ID || ""
         }`
       ),
-      [scroll.id]: http(
-        `https://scroll-mainnet.g.alchemy.com/v2/${
-          process.env.NEXT_PUBLIC_ALCHEMY_ID || ""
-        }`
-      ),
+      [scroll.id]: http("https://rpc.scroll.io"),
       [lensSepolia.id]: http(
         `https://lens-sepolia.g.alchemy.com/v2/${
           process.env.NEXT_PUBLIC_ALCHEMY_ID || ""
         }`
       ),
+      [mantleSepolia.id]: http("https://rpc.sepolia.mantle.xyz"),
     },
-
     // Required API Keys
     walletConnectProjectId:
       process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "",
-
-    // Required App Info
+    // App Info
     appName: "WOWOWIFY",
-
-    // Optional App Info
-    appDescription: "AI-powered image generation with Web3 storage",
+    appDescription: "Image overlay tool",
     appUrl: "https://wowowifyer.vercel.app",
     appIcon: "https://wowowifyer.vercel.app/wowwowowify.png",
   })
@@ -121,10 +140,24 @@ interface Web3ProviderProps {
 }
 
 export const Web3Provider = ({ children }: Web3ProviderProps) => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <ConnectKitProvider>{children}</ConnectKitProvider>
+        <ConnectKitProvider
+          customTheme={{
+            "--ck-connectbutton-color": "#000000",
+            "--ck-connectbutton-background": "#ffffff",
+            "--ck-connectbutton-hover-background": "#f5f5f5",
+          }}
+        >
+          {mounted && children}
+        </ConnectKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );

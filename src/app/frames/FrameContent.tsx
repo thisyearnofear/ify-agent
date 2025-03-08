@@ -27,6 +27,23 @@ interface FarcasterContext {
   };
 }
 
+// Define type for mint result
+interface MintResult {
+  success: boolean;
+  message?: string;
+  tokenId?: string;
+  transactionHash?: string;
+  explorerUrl?: string;
+  error?: string;
+  alreadyMinted?: boolean;
+}
+
+// Deployed contract address on Mantle Sepolia
+const CONTRACT_ADDRESS = "0xfbe99dcd3b2d93b1c8ffabc26427383daaba05d1";
+
+// Add this constant after CONTRACT_ADDRESS
+const MINT_FUNCTION_SELECTOR = "0x731133e9"; // selector for mintNFT(address,address,string,string)
+
 export default function FrameContent() {
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [contextData, setContextData] = useState<FarcasterContext | null>(null);
@@ -36,6 +53,10 @@ export default function FrameContent() {
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [groveUrl, setGroveUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isMantleify, setIsMantleify] = useState(false);
+  const [isMinting, setIsMinting] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [mintResult, setMintResult] = useState<MintResult | null>(null);
 
   const { address, isConnected } = useAccount();
   const { connect } = useConnect();
@@ -80,8 +101,13 @@ export default function FrameContent() {
 
     setIsGenerating(true);
     setError(null);
+    setMintResult(null);
 
     try {
+      // Check if the prompt contains "mantleify" to enable NFT minting
+      const isMantleifyPrompt = prompt.toLowerCase().includes("mantleify");
+      setIsMantleify(isMantleifyPrompt);
+
       // Call the agent API to generate the image
       const response = await fetch("/api/agent", {
         method: "POST",
@@ -109,9 +135,10 @@ export default function FrameContent() {
       logger.info("Image generated successfully", {
         resultUrl: data.resultUrl,
         groveUrl: data.groveUrl,
+        isMantleify: isMantleifyPrompt,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to wowowify");
+      setError(err instanceof Error ? err.message : "Failed to generate image");
       logger.error("Error generating image", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -119,6 +146,82 @@ export default function FrameContent() {
       setIsGenerating(false);
     }
   }, [prompt]);
+
+  const handleMintNFT = useCallback(async () => {
+    if (!isConnected || !address || !groveUrl || !generatedImage) {
+      setError("Please connect your wallet and generate an image first");
+      return;
+    }
+
+    setError(null);
+    setIsMinting(true);
+
+    try {
+      // Create a simple metadata URI (in a production app, you'd upload to IPFS)
+      const metadataUri = `ipfs://placeholder/${Date.now()}`;
+
+      if (!window.ethereum) {
+        throw new Error("No Ethereum provider found. Please install a wallet.");
+      }
+
+      const accounts = await window.ethereum.request({
+        method: "eth_requestAccounts",
+      });
+
+      const walletAddress = accounts[0];
+
+      // Create the transaction data with properly encoded parameters
+      const data =
+        MINT_FUNCTION_SELECTOR +
+        // Remove '0x' prefix and pad addresses to 32 bytes
+        walletAddress.slice(2).padStart(64, "0") +
+        walletAddress.slice(2).padStart(64, "0") +
+        // Convert strings to hex and pad to 32 bytes
+        Buffer.from(groveUrl).toString("hex").padEnd(64, "0") +
+        Buffer.from(metadataUri).toString("hex").padEnd(64, "0");
+
+      // Prepare transaction
+      const txParams = {
+        from: walletAddress,
+        to: CONTRACT_ADDRESS,
+        data: "0x" + data,
+        value: "0x0",
+      };
+
+      // Send transaction
+      const hash = await window.ethereum.request({
+        method: "eth_sendTransaction",
+        params: [txParams],
+      });
+
+      setIsMinting(false);
+      setIsConfirming(true);
+
+      // Wait for confirmation
+      setTimeout(() => {
+        setIsConfirming(false);
+        setMintResult({
+          success: true,
+          message: "NFT minted successfully!",
+          transactionHash: hash,
+          explorerUrl: `https://sepolia.mantlescan.xyz/tx/${hash}`,
+        });
+      }, 5000);
+
+      logger.info("NFT minting transaction sent", {
+        hash,
+        groveUrl,
+        metadataUri,
+      });
+    } catch (err) {
+      setIsMinting(false);
+      setIsConfirming(false);
+      setError(err instanceof Error ? err.message : "Failed to mint NFT");
+      logger.error("Error minting NFT", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, [address, isConnected, groveUrl, generatedImage]);
 
   const handleOpenApp = useCallback(() => {
     FrameSDK.actions.openUrl(window.location.origin);
@@ -129,6 +232,12 @@ export default function FrameContent() {
       FrameSDK.actions.openUrl(groveUrl);
     }
   }, [groveUrl]);
+
+  const handleOpenExplorerUrl = useCallback(() => {
+    if (mintResult?.explorerUrl) {
+      FrameSDK.actions.openUrl(mintResult.explorerUrl);
+    }
+  }, [mintResult]);
 
   if (!isSDKLoaded) {
     return <div className="p-4 text-center">Loading frame...</div>;
@@ -171,14 +280,14 @@ export default function FrameContent() {
               onClick={handleGenerateImage}
               disabled={isGenerating || !prompt.trim()}
             >
-              {isGenerating ? "Generating..." : "wowowify"}
+              {isGenerating ? "Generating..." : "Generate Image"}
             </button>
 
             <button
               className="w-full py-2 px-4 bg-green-600 hover:bg-green-700 text-white rounded-md"
               onClick={handleOpenApp}
             >
-              app
+              Open Full App
             </button>
           </div>
         </>
@@ -199,8 +308,40 @@ export default function FrameContent() {
                 className="w-full py-2 px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm"
                 onClick={handleOpenGroveUrl}
               >
-                Grove
+                View on Grove
               </button>
+            )}
+
+            {isMantleify && isConnected && !mintResult && (
+              <button
+                className="w-full py-2 px-4 bg-yellow-600 hover:bg-yellow-700 text-white rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleMintNFT}
+                disabled={isMinting || isConfirming}
+              >
+                {isMinting
+                  ? "Initiating..."
+                  : isConfirming
+                  ? "Confirming..."
+                  : "Mint as NFT on Mantle"}
+              </button>
+            )}
+
+            {mintResult && (
+              <div className="w-full p-2 bg-gray-800 rounded-md text-xs text-center">
+                <p className="text-green-400 mb-1">
+                  {mintResult.success
+                    ? "NFT Minted Successfully!"
+                    : mintResult.message}
+                </p>
+                {mintResult.explorerUrl && (
+                  <button
+                    className="text-blue-400 hover:text-blue-300 underline"
+                    onClick={handleOpenExplorerUrl}
+                  >
+                    View on Mantle Explorer
+                  </button>
+                )}
+              </div>
             )}
 
             <button
@@ -209,18 +350,31 @@ export default function FrameContent() {
                 setGeneratedImage(null);
                 setGroveUrl(null);
                 setPrompt("");
+                setIsMantleify(false);
+                setMintResult(null);
               }}
             >
-              wowow
+              Generate Another
             </button>
 
             <button
               className="w-full py-2 px-4 bg-green-600 hover:bg-green-700 text-white rounded-md"
               onClick={handleOpenApp}
             >
-              app
+              Open Full App
             </button>
           </div>
+        </div>
+      )}
+
+      {!isConnected && isMantleify && generatedImage && (
+        <div className="mt-4 text-center">
+          <button
+            onClick={handleConnectWallet}
+            className="text-blue-400 hover:text-blue-300 underline text-sm"
+          >
+            Connect Wallet to Mint NFT
+          </button>
         </div>
       )}
 

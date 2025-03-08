@@ -20,6 +20,7 @@
     "canvas": "^3.1.0",
     "connectkit": "^1.8.2",
     "dotenv": "^16.4.7",
+    "ethers": "^6.13.5",
     "ioredis": "^5.6.0",
     "lodash": "^4.17.21",
     "next": "15.1.7",
