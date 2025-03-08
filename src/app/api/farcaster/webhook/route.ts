@@ -250,7 +250,7 @@ export async function POST(request: Request) {
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => {
           reject(new Error("Getting allowed users timed out"));
-        }, 2000); // 2 second timeout
+        }, 5000); // 5 second timeout (increased from 2 seconds)
       });
 
       // Race the operation against the timeout
@@ -259,9 +259,14 @@ export async function POST(request: Request) {
       // If there's an error getting allowed users, log it and use the default
       logger.error("Error getting allowed users, using default", {
         error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
       });
-      // Default to just the owner
-      allowedUsers = [5254]; // @papa's FID
+
+      // Default to just the owner and a few other trusted users
+      allowedUsers = [5254, 2, 3]; // @papa's FID and a few other trusted users
+
+      // Continue processing the request despite Redis issues
+      logger.info("Continuing with default allowed users due to Redis error");
     }
 
     // Check if the author is in the allowed list

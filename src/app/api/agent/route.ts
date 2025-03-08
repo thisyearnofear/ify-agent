@@ -17,7 +17,7 @@ import { uploadToGrove } from "@/lib/grove-storage";
 export const dynamic = "force-dynamic";
 
 // Set a timeout for the entire request processing
-const TIMEOUT_MS = 25000; // 25 seconds
+const TIMEOUT_MS = 45000; // 45 seconds (increased from 25 seconds)
 
 // For serverless environment, we'll use these URLs for overlays
 const OVERLAY_URLS = {
@@ -276,7 +276,7 @@ export async function POST(request: Request): Promise<Response> {
 
           logger.info("Generating image with Venice API", {
             prompt: parsedCommand.prompt,
-            model: "flux-dev",
+            model: "fluently-xl",
           });
 
           const veniceResponse = await fetch(
@@ -289,7 +289,7 @@ export async function POST(request: Request): Promise<Response> {
               },
               body: JSON.stringify({
                 prompt: parsedCommand.prompt,
-                model: "flux-dev",
+                model: "fluently-xl",
                 hide_watermark: true,
                 width: 512,
                 height: 512,
@@ -348,7 +348,7 @@ export async function POST(request: Request): Promise<Response> {
           logger.info("Generating default image for overlay", {
             overlayMode: parsedCommand.overlayMode,
             defaultPrompt,
-            model: "flux-dev",
+            model: "fluently-xl",
           });
 
           const veniceResponse = await fetch(
@@ -361,7 +361,7 @@ export async function POST(request: Request): Promise<Response> {
               },
               body: JSON.stringify({
                 prompt: defaultPrompt,
-                model: "flux-dev",
+                model: "fluently-xl",
                 hide_watermark: true,
                 width: 512,
                 height: 512,
