@@ -25,7 +25,8 @@ export type OverlayMode =
   | "nikefy"
   | "nounify"
   | "baseify"
-  | "clankerify";
+  | "clankerify"
+  | "mantleify";
 export type Stage = "initial" | "style" | "adjust";
 
 export default function ImageOverlay() {
@@ -260,7 +261,7 @@ export default function ImageOverlay() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to generate image");
+        throw new Error(data.error || "Failed to wowowify");
       }
 
       if (data.images?.[0]) {

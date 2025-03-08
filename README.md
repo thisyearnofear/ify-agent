@@ -18,7 +18,7 @@ curl -X POST https://your-app.com/api/agent \
 The agent understands commands like:
 
 - "Generate an image of [description]"
-- "Apply the [style] overlay" (styles: degenify, higherify, wowowify, scrollify, lensify, higherise, dickbuttify, nikefy, nounify, baseify, clankerify)
+- "Apply the [style] overlay" (styles: degenify, higherify, wowowify, scrollify, lensify, higherise, dickbuttify, nikefy, nounify, baseify, clankerify, mantleify)
 - "Position at [x], [y]"
 - "Scale to [size]"
 - "Set color to [color]"
@@ -122,7 +122,7 @@ Process natural language commands to generate and manipulate images:
   "parameters": {
     "baseImageUrl": "optional URL to an existing image",
     "prompt": "optional prompt to override NLP extraction",
-    "overlayMode": "degenify" | "higherify" | "wowowify" | "scrollify" | "lensify" | "higherise" | "dickbuttify" | "nikefy" | "nounify" | "baseify" | "clankerify",
+    "overlayMode": "degenify" | "higherify" | "wowowify" | "scrollify" | "lensify" | "higherise" | "dickbuttify" | "nikefy" | "nounify" | "baseify" | "clankerify" | "mantleify",
     "controls": {
       "scale": 1.2,
       "x": 0,
@@ -216,58 +216,11 @@ The application integrates with Grove, a secure, flexible, onchain-controlled st
 - **Web3 Integration**: Images stored on Grove can be referenced in Web3 applications.
 - **Access Control**: Grove supports various access control mechanisms for uploaded content.
 
-## Farcaster Bot Integration
+## Farcaster Integration
 
-The application includes a webhook endpoint that allows your existing Farcaster bot to leverage our image generation and overlay capabilities. When someone mentions your bot on Farcaster, it can process the command and reply with the generated image.
+### Farcaster Bot
 
-### How It Works
-
-The Farcaster integration directly leverages our existing agent API:
-
-1. A user mentions your bot with a command on Farcaster (e.g., `@snel lensify a mountain landscape`)
-2. Neynar sends a webhook event to our `/api/farcaster/webhook` endpoint
-3. The webhook extracts the command and calls our agent API (`/api/agent`)
-4. The agent API processes the command using the same infrastructure that powers the web UI
-5. The webhook receives the result and replies to the original cast with the generated image
-
-This architecture ensures that your Farcaster bot provides the exact same capabilities as our web UI, with no duplication of logic.
-
-### Image Overlay Capabilities
-
-The bot can work with images in two ways:
-
-1. **Generate a new image with an overlay**: The bot can generate a new image based on your text prompt and apply an overlay to it.
-
-   Example: `@snel degenify a futuristic city with neon lights. scale to 0.5.`
-
-2. **Apply an overlay to an existing image**: When replying to a cast that contains an image, the bot can apply an overlay to that image.
-
-   Example: `@snel degenify this image. scale to 0.3.`
-
-The second capability is particularly powerful as it allows users to apply overlays to any image shared on Farcaster by simply replying to the cast containing the image and mentioning the bot with the desired overlay command.
-
-#### Important Note on Image Sources
-
-- When you **mention the bot in a new cast** with an image, it will use that image as the base for applying overlays.
-- When you **reply to a cast** and mention the bot, it will look for an image in the parent cast (the one you're replying to) and use that as the base image.
-- If you want to use an image from a specific cast, always reply to that cast and mention the bot with your overlay command.
-- If no image is found in the relevant cast, the bot will generate a new image based on your text prompt.
-
-#### Command Recognition
-
-The bot is designed to only generate or modify images when specific keywords are present in your command. This prevents the bot from responding with images when you're just mentioning it in conversation.
-
-Keywords that trigger image generation:
-
-- **Overlay modes**: `degenify`, `higherify`, `scrollify`, `lensify`, `higherise`, `dickbuttify`, `nikefy`, `nounify`, `baseify`, `clankerify`, `overlay`
-- **Generation terms**: `generate`, `create`, `make`, `draw`
-- **Image references**: `this image`, `apply to`, `add to`, `put on`
-
-If you mention the bot without using any of these keywords, it will respond with a helpful message instead of generating an image.
-
-### Example Commands
-
-Here are some example commands you can use with the bot:
+The bot can process commands when mentioned in a Farcaster cast. It works in two ways:
 
 #### Generating New Images with Overlays
 
@@ -282,6 +235,7 @@ Here are some example commands you can use with the bot:
 - `@snel nounify a cartoon character. scale to 0.5` - Generates an image with the nounify overlay
 - `@snel baseify a crypto-themed image. color to blue` - Generates an image with the baseify overlay
 - `@snel clankerify a robot scene. scale to 0.7` - Generates an image with the clankerify overlay
+- `@snel mantleify a blockchain visualization. scale to 0.5` - Generates an image with the mantleify overlay
 
 #### Applying Overlays to Existing Images
 
@@ -298,6 +252,7 @@ When replying to a cast with an image:
 - `@snel nounify this. position at 20, 30` - Applies the nounify overlay with positioning
 - `@snel baseify this image. opacity to 0.6` - Applies the baseify overlay with opacity adjustment
 - `@snel clankerify. color to green` - Applies the clankerify overlay with color adjustment
+- `@snel mantleify this image. scale to 0.4` - Applies the mantleify overlay with scaling
 
 The bot is smart enough to understand that when you reply to a cast and use phrases like "this image", "this photo", or simply specify an overlay mode, you want to apply the overlay to the image in the parent cast.
 
@@ -389,6 +344,35 @@ FARCASTER_BOT_FID=123456 \
 COMMAND="degenify this image" \
 node scripts/test-farcaster-webhook.js
 ```
+
+### Farcaster Frames
+
+The application now supports Farcaster Frames, allowing users to interact with the image overlay tool directly within Farcaster clients. This provides a seamless experience for users to:
+
+- wowowifys with overlays without leaving Farcaster
+- Connect their wallet for additional functionality
+- Access the full application with a single tap
+
+#### Using the Frame
+
+1. Visit the frame URL: `https://wowowifyer.vercel.app/frames`
+2. The frame will appear in Farcaster clients with a button to open the interactive interface
+3. Once opened, you can:
+   - Select an overlay mode
+   - Enter a prompt for image generation
+   - wowowifys directly within the frame
+   - Connect your wallet for additional functionality
+   - Open the full application if needed
+
+#### Frame Development
+
+The frame is built using:
+
+- `@farcaster/frame-sdk` - Official Farcaster Frame SDK
+- `@farcaster/frame-wagmi-connector` - Wallet connector for Farcaster Frames
+- `wagmi` and `viem` - For wallet interactions
+
+The frame implementation follows the Farcaster Frames v2 specification, providing a rich interactive experience within Farcaster clients.
 
 ## Technologies Used
 

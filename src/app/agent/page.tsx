@@ -399,7 +399,7 @@ function AgentContent() {
                     rel="noopener noreferrer"
                     className="text-purple-600 hover:text-purple-800 underline"
                   >
-                    View on Grove
+                    Grove
                   </a>
                 </div>
               )}

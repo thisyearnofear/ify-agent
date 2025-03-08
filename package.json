@@ -10,10 +10,12 @@
     "vercel-install": "npm install --legacy-peer-deps"
   },
   "dependencies": {
+    "@farcaster/frame-sdk": "^0.0.31",
+    "@farcaster/frame-wagmi-connector": "^0.0.19",
     "@google/generative-ai": "^0.23.0",
     "@lens-chain/storage-client": "^1.0.3",
     "@neynar/nodejs-sdk": "^2.19.0",
-    "@tanstack/react-query": "^5.67.1",
+    "@tanstack/react-query": "^5.67.2",
     "@types/lodash": "^4.17.15",
     "canvas": "^3.1.0",
     "connectkit": "^1.8.2",
@@ -24,7 +26,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "uuid": "^11.1.0",
-    "viem": "^2.23.6",
+    "viem": "^2.23.8",
     "wagmi": "^2.14.12"
   },
   "devDependencies": {

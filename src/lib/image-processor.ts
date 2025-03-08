@@ -84,7 +84,7 @@ export async function generateImage(prompt: string): Promise<string> {
           statusText: response.statusText,
           responseText: text,
         });
-        throw new Error(`Failed to generate image: ${response.statusText}`);
+        throw new Error(`Failed to wowowify: ${response.statusText}`);
       }
 
       let data;
@@ -179,7 +179,7 @@ export async function processImage(
       // Download image from URL
       baseImageBuffer = await downloadImage(command.baseImageUrl);
     } else if (command.prompt) {
-      // Generate image from prompt
+      // wowowify from prompt
       const base64Image = await generateImage(command.prompt);
       baseImageBuffer = Buffer.from(base64Image, "base64");
     } else {

@@ -4,9 +4,9 @@ import { logger } from "./logger";
 // Regular expressions for parsing commands
 const URL_PATTERN = /https?:\/\/[^\s]+/;
 const OVERLAY_PATTERNS = [
-  /apply\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify)/i,
-  /use\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify)/i,
-  /with\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify)/i,
+  /apply\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)/i,
+  /use\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)/i,
+  /with\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)/i,
 ];
 const POSITION_PATTERNS = [
   /position\s+(?:at|to)?\s*(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/i,
@@ -46,8 +46,8 @@ const PARENT_IMAGE_PATTERNS = [
   /this\s+picture/i,
   /this\s+cast/i,
   /this\s+one/i,
-  /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify)\s+this/i,
-  /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify)\.?\s*$/i, // Just the overlay name alone
+  /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)\s+this/i,
+  /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)\.?\s*$/i, // Just the overlay name alone
 ];
 
 // Control instruction patterns to remove from prompt
@@ -136,7 +136,8 @@ export function parseCommand(input: string): ParsedCommand {
         overlayName === "nikefy" ||
         overlayName === "nounify" ||
         overlayName === "baseify" ||
-        overlayName === "clankerify"
+        overlayName === "clankerify" ||
+        overlayName === "mantleify"
       ) {
         result.overlayMode = overlayName;
         result.action = "overlay";
@@ -201,7 +202,7 @@ export function parseCommand(input: string): ParsedCommand {
       }
     } else if (
       input.toLowerCase().includes("higherise") ||
-      input.toLowerCase().includes("higher helvetica")
+      input.toLowerCase().includes("higher higherise")
     ) {
       result.overlayMode = "higherise";
       result.action = "overlay";
@@ -264,6 +265,18 @@ export function parseCommand(input: string): ParsedCommand {
       input.toLowerCase().includes("clanker")
     ) {
       result.overlayMode = "clankerify";
+      result.action = "overlay";
+
+      // Extract the prompt from the input for implicit overlay commands
+      const promptText = cleanPrompt(input);
+      if (promptText.length > 5) {
+        result.prompt = promptText;
+      }
+    } else if (
+      input.toLowerCase().includes("mantleify") ||
+      input.toLowerCase().includes("mantle")
+    ) {
+      result.overlayMode = "mantleify";
       result.action = "overlay";
 
       // Extract the prompt from the input for implicit overlay commands

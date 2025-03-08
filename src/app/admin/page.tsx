@@ -169,7 +169,7 @@ function AdminContent() {
             href="/agent?cmd=lensify%20a%20simple%20dojo%20in%20japan%2C%20minimal%20illustration%20style.%20scale%20to%200.3.%20opacity%20to%200.3."
             className="inline-block px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600"
           >
-            Create Test Image
+            Create
           </a>
         </div>
       ) : (
@@ -190,7 +190,7 @@ function AdminContent() {
                     rel="noopener noreferrer"
                     className="text-sm text-purple-600 hover:text-purple-800"
                   >
-                    View on Grove
+                    Grove
                   </a>
                 )}
               </div>

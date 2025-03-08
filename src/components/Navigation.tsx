@@ -41,6 +41,16 @@ export default function Navigation() {
             >
               Grove
             </Link>
+            <Link
+              href="/frames"
+              className={`inline-flex items-center px-4 pt-1 border-b-2 text-sm font-medium ${
+                pathname === "/frames"
+                  ? "border-indigo-500 text-gray-900"
+                  : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
+              }`}
+            >
+              Frame
+            </Link>
           </div>
         </div>
       </div>

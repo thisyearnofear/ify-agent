@@ -1,0 +1,10 @@
+{
+    "frame": {
+        "name": "WOWOWIFY",
+        "version": "0.1.0",
+        "iconUrl": "https://wowowifyer.vercel.app/wowwowowify.png",
+        "homeUrl": "https://wowowifyer.vercel.app/frames",
+        "splashImageUrl": "https://wowowifyer.vercel.app/wowwowowify.png",
+        "splashBackgroundColor": "#131313"
+    }
+}

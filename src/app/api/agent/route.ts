@@ -39,8 +39,8 @@ const OVERLAY_URLS = {
       : "/lens/lensify.png",
   higherise:
     process.env.NODE_ENV === "production"
-      ? "https://wowowifyer.vercel.app/higher/higher-helvetica-png-white.png"
-      : "/higher/higher-helvetica-png-white.png",
+      ? "https://wowowifyer.vercel.app/higher/mantra/higherise.png"
+      : "/higher/mantra/higherise.png",
   dickbuttify:
     process.env.NODE_ENV === "production"
       ? "https://wowowifyer.vercel.app/dickbutt/dickbuttify.png"
@@ -61,6 +61,10 @@ const OVERLAY_URLS = {
     process.env.NODE_ENV === "production"
       ? "https://wowowifyer.vercel.app/clanker/clankerify.png"
       : "/clanker/clankerify.png",
+  mantleify:
+    process.env.NODE_ENV === "production"
+      ? "https://wowowifyer.vercel.app/mantle/mantleify.png"
+      : "/mantle/mantleify.png",
 };
 
 export async function POST(request: Request): Promise<Response> {
@@ -161,7 +165,8 @@ export async function POST(request: Request): Promise<Response> {
           body.parameters.overlayMode === "nikefy" ||
           body.parameters.overlayMode === "nounify" ||
           body.parameters.overlayMode === "baseify" ||
-          body.parameters.overlayMode === "clankerify"
+          body.parameters.overlayMode === "clankerify" ||
+          body.parameters.overlayMode === "mantleify"
         ) {
           parsedCommand.overlayMode = body.parameters.overlayMode;
         } else {
@@ -171,7 +176,7 @@ export async function POST(request: Request): Promise<Response> {
           });
           return NextResponse.json(
             {
-              error: `Invalid overlay mode: ${body.parameters.overlayMode}. Supported modes are: degenify, higherify, scrollify, lensify, higherise, dickbuttify, nikefy, nounify, baseify, clankerify.`,
+              error: `Invalid overlay mode: ${body.parameters.overlayMode}. Supported modes are: degenify, higherify, scrollify, lensify, higherise, dickbuttify, nikefy, nounify, baseify, clankerify, mantleify.`,
             },
             { status: 400, headers: responseHeaders }
           );
@@ -215,7 +220,8 @@ export async function POST(request: Request): Promise<Response> {
       parsedCommand.overlayMode !== "nikefy" &&
       parsedCommand.overlayMode !== "nounify" &&
       parsedCommand.overlayMode !== "baseify" &&
-      parsedCommand.overlayMode !== "clankerify"
+      parsedCommand.overlayMode !== "clankerify" &&
+      parsedCommand.overlayMode !== "mantleify"
     ) {
       logger.warn("Invalid overlay mode", {
         overlayMode: parsedCommand.overlayMode,
@@ -223,7 +229,7 @@ export async function POST(request: Request): Promise<Response> {
       });
       return NextResponse.json(
         {
-          error: `Invalid overlay mode: ${parsedCommand.overlayMode}. Supported modes are: degenify, higherify, scrollify, lensify, higherise, dickbuttify, nikefy, nounify, baseify, clankerify.`,
+          error: `Invalid overlay mode: ${parsedCommand.overlayMode}. Supported modes are: degenify, higherify, scrollify, lensify, higherise, dickbuttify, nikefy, nounify, baseify, clankerify, mantleify.`,
         },
         { status: 400, headers: responseHeaders }
       );
@@ -312,7 +318,7 @@ export async function POST(request: Request): Promise<Response> {
           );
         }
       } else if (parsedCommand.prompt) {
-        // Generate image from prompt
+        // wowowify from prompt
         try {
           // Validate API configuration
           if (!process.env.VENICE_API_KEY) {
@@ -351,9 +357,7 @@ export async function POST(request: Request): Promise<Response> {
               statusText: veniceResponse.statusText,
               responseText: text,
             });
-            throw new Error(
-              `Failed to generate image: ${veniceResponse.statusText}`
-            );
+            throw new Error(`Failed to wowowify: ${veniceResponse.statusText}`);
           }
 
           const data = await veniceResponse.json();
