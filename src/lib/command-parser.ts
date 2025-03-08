@@ -4,9 +4,9 @@ import { logger } from "./logger";
 // Regular expressions for parsing commands
 const URL_PATTERN = /https?:\/\/[^\s]+/;
 const OVERLAY_PATTERNS = [
-  /apply\s+(higherify|degenify|scrollify|lensify)/i,
-  /use\s+(higherify|degenify|scrollify|lensify)/i,
-  /with\s+(higherify|degenify|scrollify|lensify)/i,
+  /apply\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify)/i,
+  /use\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify)/i,
+  /with\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify)/i,
 ];
 const POSITION_PATTERNS = [
   /position\s+(?:at|to)?\s*(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/i,
@@ -46,8 +46,8 @@ const PARENT_IMAGE_PATTERNS = [
   /this\s+picture/i,
   /this\s+cast/i,
   /this\s+one/i,
-  /^(higherify|degenify|scrollify|lensify)\s+this/i,
-  /^(higherify|degenify|scrollify|lensify)\.?\s*$/i, // Just the overlay name alone
+  /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify)\s+this/i,
+  /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify)\.?\s*$/i, // Just the overlay name alone
 ];
 
 // Control instruction patterns to remove from prompt
@@ -130,7 +130,13 @@ export function parseCommand(input: string): ParsedCommand {
         overlayName === "higherify" ||
         overlayName === "degenify" ||
         overlayName === "scrollify" ||
-        overlayName === "lensify"
+        overlayName === "lensify" ||
+        overlayName === "higherise" ||
+        overlayName === "dickbuttify" ||
+        overlayName === "nikefy" ||
+        overlayName === "nounify" ||
+        overlayName === "baseify" ||
+        overlayName === "clankerify"
       ) {
         result.overlayMode = overlayName;
         result.action = "overlay";
@@ -186,6 +192,78 @@ export function parseCommand(input: string): ParsedCommand {
       input.toLowerCase().includes("lens style")
     ) {
       result.overlayMode = "lensify";
+      result.action = "overlay";
+
+      // Extract the prompt from the input for implicit overlay commands
+      const promptText = cleanPrompt(input);
+      if (promptText.length > 5) {
+        result.prompt = promptText;
+      }
+    } else if (
+      input.toLowerCase().includes("higherise") ||
+      input.toLowerCase().includes("higher helvetica")
+    ) {
+      result.overlayMode = "higherise";
+      result.action = "overlay";
+
+      // Extract the prompt from the input for implicit overlay commands
+      const promptText = cleanPrompt(input);
+      if (promptText.length > 5) {
+        result.prompt = promptText;
+      }
+    } else if (
+      input.toLowerCase().includes("dickbuttify") ||
+      input.toLowerCase().includes("dickbutt")
+    ) {
+      result.overlayMode = "dickbuttify";
+      result.action = "overlay";
+
+      // Extract the prompt from the input for implicit overlay commands
+      const promptText = cleanPrompt(input);
+      if (promptText.length > 5) {
+        result.prompt = promptText;
+      }
+    } else if (
+      input.toLowerCase().includes("nikefy") ||
+      input.toLowerCase().includes("nike")
+    ) {
+      result.overlayMode = "nikefy";
+      result.action = "overlay";
+
+      // Extract the prompt from the input for implicit overlay commands
+      const promptText = cleanPrompt(input);
+      if (promptText.length > 5) {
+        result.prompt = promptText;
+      }
+    } else if (
+      input.toLowerCase().includes("nounify") ||
+      input.toLowerCase().includes("nouns")
+    ) {
+      result.overlayMode = "nounify";
+      result.action = "overlay";
+
+      // Extract the prompt from the input for implicit overlay commands
+      const promptText = cleanPrompt(input);
+      if (promptText.length > 5) {
+        result.prompt = promptText;
+      }
+    } else if (
+      input.toLowerCase().includes("baseify") ||
+      input.toLowerCase().includes("base")
+    ) {
+      result.overlayMode = "baseify";
+      result.action = "overlay";
+
+      // Extract the prompt from the input for implicit overlay commands
+      const promptText = cleanPrompt(input);
+      if (promptText.length > 5) {
+        result.prompt = promptText;
+      }
+    } else if (
+      input.toLowerCase().includes("clankerify") ||
+      input.toLowerCase().includes("clanker")
+    ) {
+      result.overlayMode = "clankerify";
       result.action = "overlay";
 
       // Extract the prompt from the input for implicit overlay commands

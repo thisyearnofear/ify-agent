@@ -19,7 +19,13 @@ export type OverlayMode =
   | "higherify"
   | "wowowify"
   | "scrollify"
-  | "lensify";
+  | "lensify"
+  | "higherise"
+  | "dickbuttify"
+  | "nikefy"
+  | "nounify"
+  | "baseify"
+  | "clankerify";
 export type Stage = "initial" | "style" | "adjust";
 
 export default function ImageOverlay() {

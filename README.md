@@ -18,7 +18,7 @@ curl -X POST https://your-app.com/api/agent \
 The agent understands commands like:
 
 - "Generate an image of [description]"
-- "Apply the [style] overlay" (styles: degenify, higherify, wowowify, scrollify, lensify)
+- "Apply the [style] overlay" (styles: degenify, higherify, wowowify, scrollify, lensify, higherise, dickbuttify, nikefy, nounify, baseify, clankerify)
 - "Position at [x], [y]"
 - "Scale to [size]"
 - "Set color to [color]"
@@ -122,7 +122,7 @@ Process natural language commands to generate and manipulate images:
   "parameters": {
     "baseImageUrl": "optional URL to an existing image",
     "prompt": "optional prompt to override NLP extraction",
-    "overlayMode": "degenify" | "higherify" | "wowowify" | "scrollify" | "lensify",
+    "overlayMode": "degenify" | "higherify" | "wowowify" | "scrollify" | "lensify" | "higherise" | "dickbuttify" | "nikefy" | "nounify" | "baseify" | "clankerify",
     "controls": {
       "scale": 1.2,
       "x": 0,
@@ -259,7 +259,7 @@ The bot is designed to only generate or modify images when specific keywords are
 
 Keywords that trigger image generation:
 
-- **Overlay modes**: `degenify`, `higherify`, `scrollify`, `lensify`, `overlay`
+- **Overlay modes**: `degenify`, `higherify`, `scrollify`, `lensify`, `higherise`, `dickbuttify`, `nikefy`, `nounify`, `baseify`, `clankerify`, `overlay`
 - **Generation terms**: `generate`, `create`, `make`, `draw`
 - **Image references**: `this image`, `apply to`, `add to`, `put on`
 
@@ -276,6 +276,12 @@ Here are some example commands you can use with the bot:
 - `@snel higherify a beach sunset. opacity to 0.7` - Generates an image with the higherify overlay
 - `@snel scrollify a minimalist tech background. color to blue` - Generates an image with the scrollify overlay
 - `@snel lensify a professional portrait. scale to 0.4` - Generates an image with the lensify overlay
+- `@snel higherise a cityscape. scale to 0.6` - Generates an image with the higherise overlay
+- `@snel dickbuttify a meme template. position at 10, 20` - Generates an image with the dickbuttify overlay
+- `@snel nikefy a sports scene. opacity to 0.8` - Generates an image with the nikefy overlay
+- `@snel nounify a cartoon character. scale to 0.5` - Generates an image with the nounify overlay
+- `@snel baseify a crypto-themed image. color to blue` - Generates an image with the baseify overlay
+- `@snel clankerify a robot scene. scale to 0.7` - Generates an image with the clankerify overlay
 
 #### Applying Overlays to Existing Images
 
@@ -286,6 +292,12 @@ When replying to a cast with an image:
 - `@snel scrollify. position at 10, 20` - Applies the scrollify overlay with positioning
 - `@snel lensify this photo. opacity to 0.5` - Applies the lensify overlay with opacity adjustment
 - `@snel overlay with degenify. color to red` - Applies the degenify overlay with color adjustment
+- `@snel higherise this` - Applies the higherise overlay to the parent image
+- `@snel dickbuttify this photo` - Applies the dickbuttify overlay to the parent image
+- `@snel nikefy. scale to 0.4` - Applies the nikefy overlay with scaling
+- `@snel nounify this. position at 20, 30` - Applies the nounify overlay with positioning
+- `@snel baseify this image. opacity to 0.6` - Applies the baseify overlay with opacity adjustment
+- `@snel clankerify. color to green` - Applies the clankerify overlay with color adjustment
 
 The bot is smart enough to understand that when you reply to a cast and use phrases like "this image", "this photo", or simply specify an overlay mode, you want to apply the overlay to the image in the parent cast.
 

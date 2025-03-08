@@ -47,6 +47,12 @@ const isImageGenerationCommand = (command: string): boolean => {
     lowerCommand.includes("higherify") ||
     lowerCommand.includes("scrollify") ||
     lowerCommand.includes("lensify") ||
+    lowerCommand.includes("higherise") ||
+    lowerCommand.includes("dickbuttify") ||
+    lowerCommand.includes("nikefy") ||
+    lowerCommand.includes("nounify") ||
+    lowerCommand.includes("baseify") ||
+    lowerCommand.includes("clankerify") ||
     lowerCommand.includes("overlay");
 
   // Check for generation keywords
