@@ -39,6 +39,15 @@ const PARENT_IMAGE_PATTERNS = [
   /apply\s+(?:to|on|onto)\s+(?:this|parent|above|previous)\s+image/i,
   /use\s+(?:this|parent|above|previous)\s+image/i,
   /(?:this|parent|above|previous)\s+image/i,
+  // Add more flexible patterns
+  /overlay\s+this/i,
+  /apply\s+to\s+this/i,
+  /this\s+photo/i,
+  /this\s+picture/i,
+  /this\s+cast/i,
+  /this\s+one/i,
+  /^(higherify|degenify|scrollify|lensify)\s+this/i,
+  /^(higherify|degenify|scrollify|lensify)\.?\s*$/i, // Just the overlay name alone
 ];
 
 // Control instruction patterns to remove from prompt
@@ -184,6 +193,18 @@ export function parseCommand(input: string): ParsedCommand {
       if (promptText.length > 5) {
         result.prompt = promptText;
       }
+    }
+  }
+
+  // If we have an overlay mode but no explicit parent image reference,
+  // check if the command is short and likely referring to the current image
+  if (result.overlayMode && !result.useParentImage && input.length < 50) {
+    // If the command is short and has an overlay mode but no clear prompt,
+    // assume it's referring to the parent image
+    const cleanedInput = cleanPrompt(input);
+    if (cleanedInput.length < 20) {
+      result.useParentImage = true;
+      result.action = "overlay";
     }
   }
 

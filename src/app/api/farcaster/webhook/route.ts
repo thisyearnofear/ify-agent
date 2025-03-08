@@ -37,6 +37,75 @@ const extractCommand = (text: string): string => {
   return text.replace(/@\w+/g, "").trim();
 };
 
+// Check if a URL is an image URL
+const isImageUrl = (url: string): boolean => {
+  if (!url) return false;
+
+  // Check for common image extensions
+  const hasImageExtension = /\.(png|jpg|jpeg|gif|webp)$/i.test(url);
+
+  // Check for common image hosting domains
+  const isImageHostingDomain =
+    url.includes("api.grove.storage") ||
+    url.includes("i.imgur.com") ||
+    url.includes("cdn.warpcast.com") ||
+    url.includes("ipfs.io") ||
+    url.includes("arweave.net") ||
+    url.includes("lens.infura-ipfs.io") ||
+    url.includes("imagedelivery.net"); // Add Farcaster's image delivery domain
+
+  return hasImageExtension || isImageHostingDomain;
+};
+
+// Extract image URL from a cast
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const extractImageUrlFromCast = (cast: any): string | undefined => {
+  // Check if there's an image in the embeds
+  if (cast.embeds && cast.embeds.length > 0) {
+    for (const embed of cast.embeds) {
+      // Check if the embed has metadata indicating it's an image
+      if (
+        embed.metadata &&
+        embed.metadata.content_type &&
+        embed.metadata.content_type.startsWith("image/")
+      ) {
+        logger.info("Found image URL in embeds with image content type", {
+          imageUrl: embed.url,
+          contentType: embed.metadata.content_type,
+        });
+        return embed.url;
+      }
+
+      // Fallback to URL check if metadata doesn't indicate image
+      if (embed.url && isImageUrl(embed.url)) {
+        logger.info("Found image URL in embeds", { imageUrl: embed.url });
+        return embed.url;
+      }
+    }
+  }
+
+  // Check if parent_url is an image
+  if (cast.parent_url && isImageUrl(cast.parent_url)) {
+    logger.info("Found image URL in parent_url", { imageUrl: cast.parent_url });
+    return cast.parent_url;
+  }
+
+  // Check for image URLs in the text (sometimes images are directly embedded)
+  if (cast.text) {
+    const urlMatches = cast.text.match(/https?:\/\/[^\s]+/g);
+    if (urlMatches) {
+      for (const url of urlMatches) {
+        if (isImageUrl(url)) {
+          logger.info("Found image URL in text", { imageUrl: url });
+          return url;
+        }
+      }
+    }
+  }
+
+  return undefined;
+};
+
 // Reply to the original cast with the result
 const replyToCast = async (
   parentHash: string,
@@ -232,53 +301,50 @@ export async function POST(request: Request) {
       // Check if this is a reply to another cast
       if (castData.parent_hash) {
         try {
-          // For simplicity, we'll check if there's a parent_url in the cast data
-          // This is a simpler approach than trying to fetch the parent cast
-          if (castData.parent_url) {
-            // If the parent_url is an image URL, use it directly
-            if (
-              castData.parent_url.endsWith(".png") ||
-              castData.parent_url.endsWith(".jpg") ||
-              castData.parent_url.endsWith(".jpeg") ||
-              castData.parent_url.endsWith(".gif") ||
-              castData.parent_url.includes("api.grove.storage")
-            ) {
-              parentImageUrl = castData.parent_url;
-              logger.info("Found parent image URL from parent_url", {
-                parentImageUrl,
-              });
-            }
-          }
+          // Initialize Neynar client
+          const neynarClient = getNeynarClient();
 
-          // If we couldn't find an image URL in the parent_url, check the embeds
-          if (
-            !parentImageUrl &&
-            castData.embeds &&
-            castData.embeds.length > 0
-          ) {
-            // Find the first image URL in the embeds
-            for (const embed of castData.embeds) {
-              if (
-                embed.url &&
-                (embed.url.endsWith(".png") ||
-                  embed.url.endsWith(".jpg") ||
-                  embed.url.endsWith(".jpeg") ||
-                  embed.url.endsWith(".gif") ||
-                  embed.url.includes("api.grove.storage"))
-              ) {
-                parentImageUrl = embed.url;
-                logger.info("Found parent image URL from embeds", {
-                  parentImageUrl,
+          // First, try to extract image from the current cast data
+          parentImageUrl = extractImageUrlFromCast(castData);
+
+          // If no image found in the current cast data, try to fetch the parent cast
+          if (!parentImageUrl) {
+            logger.info("Fetching parent cast to find image", {
+              parentHash: castData.parent_hash,
+            });
+
+            try {
+              // Use lookupCastByHashOrWarpcastUrl to get the parent cast
+              const parentCastResponse =
+                await neynarClient.lookupCastByHashOrWarpcastUrl({
+                  identifier: castData.parent_hash,
+                  type: "hash",
                 });
-                break;
+
+              if (parentCastResponse && parentCastResponse.cast) {
+                // Extract image URL from the parent cast
+                parentImageUrl = extractImageUrlFromCast(
+                  parentCastResponse.cast
+                );
+
+                if (parentImageUrl) {
+                  logger.info("Found image URL in parent cast", {
+                    parentImageUrl,
+                  });
+                }
               }
+            } catch (error) {
+              logger.error("Error fetching parent cast", {
+                error: error instanceof Error ? error.message : String(error),
+                parentHash: castData.parent_hash,
+              });
             }
           }
 
           if (!parentImageUrl) {
             await replyToCast(
               castData.hash,
-              "I couldn't find an image in the parent cast to apply the overlay to."
+              "I couldn't find an image in the parent cast to apply the overlay to. Please make sure the cast you're replying to contains an image."
             );
             return NextResponse.json({
               status: "error",
@@ -293,7 +359,7 @@ export async function POST(request: Request) {
 
           await replyToCast(
             castData.hash,
-            "I couldn't find an image in the parent cast. Please try again."
+            "I couldn't find an image in the parent cast. Please try again with a cast that contains an image."
           );
           return NextResponse.json({
             status: "error",
@@ -301,14 +367,19 @@ export async function POST(request: Request) {
           });
         }
       } else {
-        await replyToCast(
-          castData.hash,
-          "I need a parent cast with an image to apply the overlay to. Please reply to a cast that contains an image."
-        );
-        return NextResponse.json({
-          status: "error",
-          reason: "Not a reply to another cast",
-        });
+        // Check if the current cast has an image
+        parentImageUrl = extractImageUrlFromCast(castData);
+
+        if (!parentImageUrl) {
+          await replyToCast(
+            castData.hash,
+            "I need a cast with an image to apply the overlay to. Please either include an image in your cast or reply to a cast that contains an image."
+          );
+          return NextResponse.json({
+            status: "error",
+            reason: "No image found in current or parent cast",
+          });
+        }
       }
     }
 

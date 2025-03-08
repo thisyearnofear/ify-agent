@@ -150,8 +150,17 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // If parentImageUrl is provided, use it as the baseImageUrl
-    if (parentImageUrl && parsedCommand.useParentImage) {
+    if (parentImageUrl) {
+      logger.info("Using parent image URL from Farcaster", { parentImageUrl });
       parsedCommand.baseImageUrl = parentImageUrl;
+      parsedCommand.useParentImage = true;
+      parsedCommand.action = "overlay";
+
+      // If no overlay mode is specified but we have a parent image, default to a mode
+      if (!parsedCommand.overlayMode) {
+        parsedCommand.overlayMode = "degenify"; // Default to degenify if not specified
+        logger.info("No overlay mode specified, defaulting to degenify");
+      }
     }
 
     // Validate overlay mode
@@ -179,6 +188,9 @@ export async function POST(request: Request): Promise<Response> {
         requestId,
         action: parsedCommand.action,
         ip,
+        baseImageUrl: parsedCommand.baseImageUrl ? "provided" : "not provided",
+        useParentImage: parsedCommand.useParentImage,
+        overlayMode: parsedCommand.overlayMode,
       });
 
       // Step 1: Generate or get base image
@@ -186,20 +198,72 @@ export async function POST(request: Request): Promise<Response> {
       if (parsedCommand.baseImageUrl) {
         // Download image from URL
         try {
-          const response = await fetch(parsedCommand.baseImageUrl, {
-            signal: controller.signal,
+          logger.info("Downloading image from URL", {
+            url: parsedCommand.baseImageUrl.substring(0, 100), // Log truncated URL for privacy
           });
-          if (!response.ok) {
-            throw new Error(`Failed to download image: ${response.statusText}`);
+
+          // Special handling for imagedelivery.net URLs (Farcaster images)
+          const imageUrl = parsedCommand.baseImageUrl;
+          const isFarcasterImage = imageUrl.includes("imagedelivery.net");
+
+          // For Farcaster images, ensure we're requesting the original size
+          const finalImageUrl =
+            isFarcasterImage && !imageUrl.includes("/original")
+              ? `${imageUrl.split("?")[0]}/original`
+              : imageUrl;
+
+          if (finalImageUrl !== imageUrl) {
+            logger.info("Modified image URL to request original size", {
+              originalUrl: imageUrl.substring(0, 100),
+              modifiedUrl: finalImageUrl.substring(0, 100),
+            });
           }
+
+          const response = await fetch(finalImageUrl, {
+            signal: controller.signal,
+            headers: {
+              // Add headers that might be needed for certain image hosts
+              "User-Agent": "Mozilla/5.0 (compatible; WOWOWIFYAgent/1.0)",
+              Accept: "image/*, */*",
+            },
+          });
+
+          if (!response.ok) {
+            throw new Error(
+              `Failed to download image: ${response.status} ${response.statusText}`
+            );
+          }
+
+          const contentType = response.headers.get("content-type");
+          if (contentType && !contentType.includes("image")) {
+            logger.warn("URL did not return an image content type", {
+              contentType,
+              url: finalImageUrl.substring(0, 100),
+            });
+            // Continue anyway as some servers might not set the correct content type
+          }
+
           const arrayBuffer = await response.arrayBuffer();
           baseImageBuffer = Buffer.from(arrayBuffer);
+
+          if (baseImageBuffer.length < 100) {
+            throw new Error("Downloaded image is too small or invalid");
+          }
+
+          logger.info("Successfully downloaded image", {
+            size: baseImageBuffer.length,
+            url: finalImageUrl.substring(0, 100),
+          });
         } catch (error) {
           logger.error("Error downloading image", {
             error: error instanceof Error ? error.message : "Unknown error",
-            url: parsedCommand.baseImageUrl,
+            url: parsedCommand.baseImageUrl.substring(0, 100),
           });
-          throw new Error("Failed to download base image");
+          throw new Error(
+            `Failed to download base image: ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`
+          );
         }
       } else if (parsedCommand.prompt) {
         // Generate image from prompt
