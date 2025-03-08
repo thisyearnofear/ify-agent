@@ -17,7 +17,7 @@ import { uploadToGrove } from "@/lib/grove-storage";
 export const dynamic = "force-dynamic";
 
 // Set a timeout for the entire request processing
-const TIMEOUT_MS = 45000; // 45 seconds (increased from 25 seconds)
+const TIMEOUT_MS = 25000; // 25 seconds
 
 // For serverless environment, we'll use these URLs for overlays
 const OVERLAY_URLS = {
@@ -276,7 +276,7 @@ export async function POST(request: Request): Promise<Response> {
 
           logger.info("Generating image with Venice API", {
             prompt: parsedCommand.prompt,
-            model: "fluently-xl",
+            model: "stable-diffusion-3.5",
           });
 
           const veniceResponse = await fetch(
@@ -289,7 +289,7 @@ export async function POST(request: Request): Promise<Response> {
               },
               body: JSON.stringify({
                 prompt: parsedCommand.prompt,
-                model: "fluently-xl",
+                model: "stable-diffusion-3.5",
                 hide_watermark: true,
                 width: 512,
                 height: 512,
@@ -348,7 +348,6 @@ export async function POST(request: Request): Promise<Response> {
           logger.info("Generating default image for overlay", {
             overlayMode: parsedCommand.overlayMode,
             defaultPrompt,
-            model: "fluently-xl",
           });
 
           const veniceResponse = await fetch(
@@ -361,7 +360,7 @@ export async function POST(request: Request): Promise<Response> {
               },
               body: JSON.stringify({
                 prompt: defaultPrompt,
-                model: "fluently-xl",
+                model: "stable-diffusion-3.5",
                 hide_watermark: true,
                 width: 512,
                 height: 512,
@@ -521,107 +520,54 @@ export async function POST(request: Request): Promise<Response> {
           logger.info(
             `Storing ${parsedCommand.overlayMode || "generated"} image in Grove`
           );
+          try {
+            const fileName = `${
+              parsedCommand.overlayMode || "generated"
+            }-${resultId}.png`;
 
-          // For Farcaster integration, we need to make sure Grove storage works
-          // Try up to 3 times with increasing timeouts
-          const maxRetries = 3;
-          let retryCount = 0;
-          let lastError = null;
+            // Check if this request is coming from Farcaster webhook
+            const isFarcasterRequest =
+              request.headers
+                .get("referer")
+                ?.includes("/api/farcaster/webhook") ||
+              request.headers.get("x-source") === "farcaster-webhook";
 
-          while (retryCount < maxRetries) {
-            try {
-              const fileName = `${
-                parsedCommand.overlayMode || "generated"
-              }-${resultId}.png`;
-
-              // Increase timeout for each retry
-              const timeout = 10000 + retryCount * 5000; // 10s, 15s, 20s
-
+            if (isFarcasterRequest) {
               logger.info(
-                `Grove upload attempt ${retryCount + 1}/${maxRetries}`,
-                {
-                  fileName,
-                  timeout,
-                }
+                "Request is from Farcaster webhook, prioritizing Grove storage"
               );
-
-              // Create a custom upload function with the current timeout
-              const uploadWithTimeout = async () => {
-                const uploadPromise = uploadToGrove(
-                  resultBuffer,
-                  fileName,
-                  walletAddressForOverlay
-                );
-
-                const timeoutPromise = new Promise<never>((_, reject) => {
-                  setTimeout(
-                    () =>
-                      reject(
-                        new Error(
-                          `Grove upload timeout after ${timeout / 1000} seconds`
-                        )
-                      ),
-                    timeout
-                  );
-                });
-
-                return Promise.race([uploadPromise, timeoutPromise]);
-              };
-
-              // Attempt the upload with the current timeout
-              const groveResult = await uploadWithTimeout();
-
-              // Only set the Grove URI and URL if they're not empty
-              if (groveResult.uri && groveResult.gatewayUrl) {
-                groveUri = groveResult.uri;
-                groveUrl = groveResult.gatewayUrl;
-                logger.info("Successfully stored image in Grove", {
-                  groveUri,
-                  groveUrl,
-                  attempt: retryCount + 1,
-                  walletAddress: walletAddressForOverlay || "none",
-                });
-
-                // Success, break out of retry loop
-                break;
-              } else {
-                // Empty result but no error thrown
-                logger.warn("Grove storage returned empty URI or URL", {
-                  uri: groveResult.uri,
-                  gatewayUrl: groveResult.gatewayUrl,
-                  attempt: retryCount + 1,
-                  walletAddress: walletAddressForOverlay || "none",
-                });
-
-                lastError = new Error("Empty Grove storage result");
-                retryCount++;
-
-                // Wait before retrying
-                await new Promise((resolve) => setTimeout(resolve, 1000));
-              }
-            } catch (error) {
-              lastError = error;
-              logger.error("Failed to store image in Grove", {
-                error: error instanceof Error ? error.message : String(error),
-                attempt: retryCount + 1,
-                walletAddress: walletAddressForOverlay || "none",
-              });
-
-              retryCount++;
-
-              // Wait before retrying
-              await new Promise((resolve) => setTimeout(resolve, 1000));
             }
-          }
 
-          // If we exhausted all retries and still don't have a Grove URL, log a critical error
-          if (!groveUrl) {
-            logger.error("All Grove upload attempts failed", {
-              totalAttempts: retryCount,
-              lastError:
-                lastError instanceof Error
-                  ? lastError.message
-                  : String(lastError),
+            // Always attempt Grove storage, even without a wallet address
+            // This is especially important for Farcaster integration
+            const groveResult = await uploadToGrove(
+              resultBuffer,
+              fileName,
+              walletAddressForOverlay // Pass the wallet address for ACL if available
+            );
+
+            // Only set the Grove URI and URL if they're not empty
+            if (groveResult.uri && groveResult.gatewayUrl) {
+              groveUri = groveResult.uri;
+              groveUrl = groveResult.gatewayUrl;
+              logger.info("Successfully stored image in Grove", {
+                groveUri,
+                groveUrl,
+                walletAddress: walletAddressForOverlay || "none",
+                isFarcasterRequest: isFarcasterRequest || false,
+              });
+            } else {
+              logger.warn("Grove storage returned empty URI or URL", {
+                uri: groveResult.uri,
+                gatewayUrl: groveResult.gatewayUrl,
+                walletAddress: walletAddressForOverlay || "none",
+                isFarcasterRequest: isFarcasterRequest || false,
+              });
+            }
+          } catch (error) {
+            logger.error("Failed to store image in Grove", {
+              error: error instanceof Error ? error.message : String(error),
+              walletAddress: walletAddressForOverlay || "none",
             });
           }
         }
@@ -635,18 +581,12 @@ export async function POST(request: Request): Promise<Response> {
           status: "completed",
           resultUrl,
           previewUrl,
+          groveUri,
+          groveUrl,
         };
 
-        // Add Grove information if available
-        if (groveUri) {
-          response.groveUri = groveUri;
-        }
-        if (groveUrl) {
-          response.groveUrl = groveUrl;
-        }
-
-        // Return the response with rate limit headers
         return NextResponse.json(response, {
+          status: 200,
           headers: responseHeaders,
         });
       } catch (error) {

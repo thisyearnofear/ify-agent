@@ -49,8 +49,8 @@ export async function uploadToGrove(
     // Add a timeout to prevent hanging
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(
-        () => reject(new Error("Grove upload timeout after 20 seconds")),
-        20000
+        () => reject(new Error("Grove upload timeout after 10 seconds")),
+        10000
       );
     });
 

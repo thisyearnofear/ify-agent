@@ -10,7 +10,7 @@ const DEFAULT_ALLOWED_USERS = [5254]; // @papa's FID
 // Cache the allowed users in memory to reduce Redis calls
 let cachedAllowedUsers: number[] | null = null;
 let cacheTimestamp = 0;
-const CACHE_TTL = 30 * 60 * 1000; // 30 minutes (increased from 5 minutes)
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes (increased from 1 minute)
 
 // Initialize Redis client with timeout and retry options
 const getRedisClient = () => {
@@ -19,9 +19,8 @@ const getRedisClient = () => {
     throw new Error("REDIS_URL is not defined");
   }
 
-  // Create a new Redis client with improved error handling
-  const client = new Redis(redisUrl, {
-    connectTimeout: 10000, // 10 seconds (increased from 5 seconds)
+  return new Redis(redisUrl, {
+    connectTimeout: 5000, // 5 seconds
     maxRetriesPerRequest: 1, // Reduced from 2 to fail faster
     retryStrategy: (times) => {
       if (times > 2) {
@@ -33,16 +32,6 @@ const getRedisClient = () => {
     enableOfflineQueue: false, // Don't queue commands when disconnected
     enableReadyCheck: false, // Skip the ready check to improve performance
   });
-
-  // Add error event handler to prevent unhandled errors
-  client.on("error", (err) => {
-    logger.error("Redis client error", {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    // Don't crash the application, just log the error
-  });
-
-  return client;
 };
 
 // Get allowed users from Redis or cache
@@ -56,17 +45,16 @@ export async function getAllowedUsers(): Promise<number[]> {
     }
 
     // Try to get from Redis with a timeout
-    let redis: Redis | null = null;
+    const redis = getRedisClient();
+
+    // Set a timeout for the Redis operation
+    const timeoutPromise = new Promise<null>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error("Redis operation timed out"));
+      }, 2000); // Reduced from 3 seconds to 2 seconds
+    });
+
     try {
-      redis = getRedisClient();
-
-      // Set a timeout for the Redis operation
-      const timeoutPromise = new Promise<null>((_, reject) => {
-        setTimeout(() => {
-          reject(new Error("Redis operation timed out"));
-        }, 2000); // 2 seconds timeout
-      });
-
       // Race the Redis operation against the timeout
       const allowedUsersStr = (await Promise.race([
         redis.get(ALLOWED_USERS_KEY),
@@ -74,13 +62,11 @@ export async function getAllowedUsers(): Promise<number[]> {
       ])) as string | null;
 
       // Close the Redis connection
-      if (redis) {
-        await redis.quit().catch((err) => {
-          logger.error("Error closing Redis connection", {
-            error: err instanceof Error ? err.message : String(err),
-          });
+      await redis.quit().catch((err) => {
+        logger.error("Error closing Redis connection", {
+          error: err instanceof Error ? err.message : String(err),
         });
-      }
+      });
 
       if (!allowedUsersStr) {
         // Initialize with default allowed users if not set
@@ -105,20 +91,17 @@ export async function getAllowedUsers(): Promise<number[]> {
       return allowedUsers;
     } catch (error) {
       // Close the Redis connection on error
-      if (redis) {
-        redis.quit().catch((err) => {
-          logger.error("Error closing Redis connection after error", {
-            error: err instanceof Error ? err.message : String(err),
-          });
+      redis.quit().catch((err) => {
+        logger.error("Error closing Redis connection after error", {
+          error: err instanceof Error ? err.message : String(err),
         });
-      }
+      });
 
       throw error; // Re-throw to be caught by the outer try/catch
     }
   } catch (error) {
     logger.error("Error getting allowed users", {
       error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
     });
 
     // If we have a cache, use it even if it's expired
@@ -139,17 +122,16 @@ export async function setAllowedUsers(users: number[]): Promise<boolean> {
     cachedAllowedUsers = users;
     cacheTimestamp = Date.now();
 
-    let redis: Redis | null = null;
+    const redis = getRedisClient();
+
+    // Set a timeout for the Redis operation
+    const timeoutPromise = new Promise<boolean>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error("Redis operation timed out"));
+      }, 2000); // Reduced from 3 seconds to 2 seconds
+    });
+
     try {
-      redis = getRedisClient();
-
-      // Set a timeout for the Redis operation
-      const timeoutPromise = new Promise<boolean>((_, reject) => {
-        setTimeout(() => {
-          reject(new Error("Redis operation timed out"));
-        }, 2000); // 2 seconds timeout
-      });
-
       // Race the Redis operation against the timeout
       await Promise.race([
         redis.set(ALLOWED_USERS_KEY, JSON.stringify(users)),
@@ -157,31 +139,26 @@ export async function setAllowedUsers(users: number[]): Promise<boolean> {
       ]);
 
       // Close the Redis connection
-      if (redis) {
-        await redis.quit().catch((err) => {
-          logger.error("Error closing Redis connection", {
-            error: err instanceof Error ? err.message : String(err),
-          });
+      await redis.quit().catch((err) => {
+        logger.error("Error closing Redis connection", {
+          error: err instanceof Error ? err.message : String(err),
         });
-      }
+      });
 
       return true;
     } catch (error) {
       // Close the Redis connection on error
-      if (redis) {
-        redis.quit().catch((err) => {
-          logger.error("Error closing Redis connection after error", {
-            error: err instanceof Error ? err.message : String(err),
-          });
+      redis.quit().catch((err) => {
+        logger.error("Error closing Redis connection after error", {
+          error: err instanceof Error ? err.message : String(err),
         });
-      }
+      });
 
       throw error; // Re-throw to be caught by the outer try/catch
     }
   } catch (error) {
     logger.error("Error setting allowed users", {
       error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
     });
 
     // We still return true because we've updated the cache
