@@ -160,8 +160,8 @@ export default function FrameContent() {
     setIsMinting(true);
 
     try {
-      // Create a simple metadata URI (in a production app, you'd upload to IPFS)
-      const metadataUri = `ipfs://placeholder/${Date.now()}`;
+      // Create a metadata URI that includes the Grove URL for better identification
+      const metadataUri = `ipfs://mantleify/${encodeURIComponent(groveUrl)}`;
 
       if (!window.ethereum) {
         throw new Error("No Ethereum provider found. Please install a wallet.");
