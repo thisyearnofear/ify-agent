@@ -85,9 +85,7 @@ function AdminContent() {
       </div>
 
       <div className="mb-8">
-        <h2 className="text-xl font-bold text-center mb-4">
-          Latest Grove Images
-        </h2>
+        <h2 className="text-xl font-bold text-center mb-4">Latest</h2>
 
         {isInitialLoad || loading ? (
           <div className="flex justify-center p-4">
@@ -146,7 +144,7 @@ function AdminContent() {
 
       {/* Mantleify NFT Gallery */}
       <div className="mb-6">
-        <h2 className="text-xl font-bold text-center mb-4">Mantleify NFTs</h2>
+        <h2 className="text-xl font-bold text-center mb-4">Mantle NFTs</h2>
         <MantleifyGallery />
       </div>
 

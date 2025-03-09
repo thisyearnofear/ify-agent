@@ -7,6 +7,9 @@ import { ethers } from "ethers";
 // MantleifyNFT contract ABI (just the functions we need)
 const CONTRACT_ABI = [
   "function ownerOf(uint256 tokenId) external view returns (address)",
+  "function tokenURI(uint256) external view returns (string)",
+  "function creators(uint256) external view returns (address)",
+  "function totalSupply() external view returns (uint256)",
   "function groveUrlToTokenId(string) external view returns (uint256)",
   "event MantleifyNFTMinted(uint256 indexed tokenId, address indexed creator, string groveUrl, string tokenURI)",
 ];
@@ -19,6 +22,7 @@ interface NFTItem {
   imageUrl: string;
   groveUrl: string;
   owner: string;
+  tokenURI: string;
 }
 
 // Define a type for the event with args
@@ -55,61 +59,93 @@ export default function MantleifyGallery() {
         // Fetch the latest tokens (up to 8)
         const items: NFTItem[] = [];
 
-        // Start from token ID 1 and try to fetch up to 20 tokens
-        // We'll stop when we have 8 valid tokens or hit an error
-        for (let i = 1; i <= 20 && items.length < 8; i++) {
+        // First, try to get the total supply
+        let totalSupply = 0;
+        try {
+          const supply = await contract.totalSupply();
+          totalSupply = Number(supply);
+          console.log("Total supply:", totalSupply);
+        } catch (error) {
+          console.warn(
+            "Could not get total supply, will try sequential IDs",
+            error
+          );
+          totalSupply = 20; // Fallback to checking first 20 IDs
+        }
+
+        // Start from token ID 1 and try to fetch up to totalSupply tokens
+        // We'll stop when we have 8 valid tokens or hit the end
+        for (let i = 1; i <= totalSupply && items.length < 8; i++) {
           try {
             const tokenId = i.toString();
 
             // Check if this token exists by trying to get its owner
             const owner = await contract.ownerOf(tokenId);
 
-            // For now, we'll use a placeholder image
-            let imageUrl = `/previews/mantleify-${(i % 3) + 1}.png`;
+            // Get the token URI
+            const tokenURI = await contract.tokenURI(tokenId);
+            console.log(`Token ${tokenId} URI:`, tokenURI);
+
+            // Extract the Grove URL from the tokenURI if possible
+            // The format we're using is: ipfs://mantleify/encodedGroveUrl
             let groveUrl = "";
-
-            // Try to extract the actual Grove URL from transaction logs or events
-            try {
-              // Look for MantleifyNFTMinted events for this token
-              const filter = contract.filters.MantleifyNFTMinted(i);
-              const events = await contract.queryFilter(filter);
-
-              if (events.length > 0) {
-                // Extract the Grove URL from the event
-                const event = events[0] as MintEvent;
-                if (event.args?.groveUrl) {
-                  groveUrl = event.args.groveUrl;
-                  imageUrl = groveUrl;
-                }
-              }
-            } catch (eventError) {
-              console.warn(
-                `Could not fetch events for token ${tokenId}:`,
-                eventError
-              );
-
-              // If we can't get the event, try a different approach
-              // For testing, we'll use the actual Grove URLs you've minted
-              if (tokenId === "1") {
-                groveUrl =
-                  "https://api.grove.storage/eabcf4739fc252f54c7f83ed8851bce584f888e98c439abc63a2b7a4305ef643";
-                imageUrl = groveUrl;
-              } else if (tokenId === "2") {
-                // Add other known Grove URLs for testing
-                groveUrl = "https://api.grove.storage/ipfs/QmYourGroveHash2";
-                imageUrl = groveUrl;
-              } else if (tokenId === "3") {
-                groveUrl =
-                  "https://api.grove.storage/eabcf4739fc252f54c7f83ed8851bce584f888e98c439abc63a2b7a4305ef643";
-                imageUrl = groveUrl;
+            if (tokenURI && tokenURI.startsWith("ipfs://mantleify/")) {
+              try {
+                groveUrl = decodeURIComponent(
+                  tokenURI.replace("ipfs://mantleify/", "")
+                );
+                console.log(
+                  `Extracted Grove URL for token ${tokenId}:`,
+                  groveUrl
+                );
+              } catch (decodeError) {
+                console.warn(
+                  `Could not decode URI for token ${tokenId}:`,
+                  decodeError
+                );
               }
             }
+
+            // If we couldn't extract from tokenURI, try to find it from events
+            if (!groveUrl) {
+              try {
+                // Look for recent MantleifyNFTMinted events for this token
+                // Limit the block range to avoid the 10,000 block limit
+                const currentBlock = await provider.getBlockNumber();
+                const fromBlock = Math.max(0, currentBlock - 10000); // Last 10,000 blocks
+
+                const filter = contract.filters.MantleifyNFTMinted(i);
+                const events = await contract.queryFilter(filter, fromBlock);
+
+                if (events.length > 0) {
+                  // Extract the Grove URL from the event
+                  const event = events[0] as MintEvent;
+                  if (event.args?.groveUrl) {
+                    groveUrl = event.args.groveUrl;
+                    console.log(
+                      `Found Grove URL from event for token ${tokenId}:`,
+                      groveUrl
+                    );
+                  }
+                }
+              } catch (eventError) {
+                console.warn(
+                  `Could not fetch events for token ${tokenId}:`,
+                  eventError
+                );
+              }
+            }
+
+            // Use the Grove URL as the image URL, or fall back to a placeholder
+            const imageUrl =
+              groveUrl || `/previews/mantleify-${(i % 3) + 1}.png`;
 
             items.push({
               tokenId,
               imageUrl,
               groveUrl,
               owner,
+              tokenURI,
             });
           } catch (tokenError) {
             // Token might not exist, just continue
