@@ -1,10 +1,18 @@
 {
+    "accountAssociation": {
+        "header": "eyJmaWQiOjUyNTQsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHg4QjAzQTJDMzY1YzI2MUFlQmU2ODQyMjREQkI2Qzk1OTJhQkNkRkIyIn0",
+        "payload": "eyJkb21haW4iOiJ3b3dvd2lmeS52ZXJjZWwuYXBwIn0",
+        "signature": "MHg1ODdhYzM5NzhmZWZkZWNiNTExMDk5MDk0NjgxMGMzYTgyNjRiZmNiNTZhYTFmYmNhMjI1YmYwOTcyZTI5OTExNzQzZTZjZTUxM2E0MzZiN2Q0MTIyNzAxNWI0MWVjMzU1NzI1NTZiNzBkNjA2ZDg1NTQzM2Y3NzFlMjg0YWZjYTFi"
+    },
     "frame": {
+        "version": "1",
         "name": "WOWOWIFY",
-        "version": "0.1.0",
-        "iconUrl": "https://wowowifyer.vercel.app/wowwowowify.png",
-        "homeUrl": "https://wowowifyer.vercel.app/frames",
-        "splashImageUrl": "https://wowowifyer.vercel.app/wowwowowify.png",
-        "splashBackgroundColor": "#131313"
+        "iconUrl": "https://wowowify.vercel.app/wowwowowify.png",
+        "homeUrl": "https://wowowify.vercel.app/frames",
+        "imageUrl": "https://wowowify.vercel.app/wowwowowify.png",
+        "buttonTitle": "Generate Image",
+        "splashImageUrl": "https://wowowify.vercel.app/wowwowowify.png",
+        "splashBackgroundColor": "#131313",
+        "webhookUrl": "https://wowowify.vercel.app/api/farcaster/webhook"
     }
 }
