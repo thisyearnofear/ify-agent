@@ -226,15 +226,93 @@ export default function FrameContent() {
     FrameSDK.actions.openUrl(window.location.origin);
   }, []);
 
+  const postMessageToParent = (
+    action: string,
+    data: Record<string, unknown>
+  ) => {
+    try {
+      if (window.parent) {
+        window.parent.postMessage({ action, data }, "*");
+        console.log(`Posted message to parent: ${action}`, data);
+      } else {
+        console.warn("No parent window found for postMessage");
+      }
+    } catch (error) {
+      console.error("Error posting message to parent:", error);
+    }
+  };
+
   const handleOpenGroveUrl = useCallback(() => {
     if (groveUrl) {
-      FrameSDK.actions.openUrl(groveUrl);
+      try {
+        console.log("Attempting to open Grove URL:", groveUrl);
+
+        // First try the Frame SDK approach
+        if (FrameSDK && FrameSDK.actions && FrameSDK.actions.openUrl) {
+          FrameSDK.actions.openUrl(groveUrl);
+          console.log("Called FrameSDK.actions.openUrl with:", groveUrl);
+        } else {
+          // Try postMessage as a fallback for Farcaster
+          postMessageToParent("openUrl", { url: groveUrl });
+
+          // Also try window.open as a last resort
+          setTimeout(() => {
+            window.open(groveUrl, "_blank");
+          }, 100);
+        }
+      } catch (error) {
+        console.error("Error opening Grove URL:", error);
+
+        // Try alternative approaches
+        try {
+          // Try postMessage
+          postMessageToParent("openUrl", { url: groveUrl });
+
+          // Also try window.open
+          setTimeout(() => {
+            window.open(groveUrl, "_blank");
+          }, 100);
+        } catch (fallbackError) {
+          console.error("All fallbacks failed:", fallbackError);
+        }
+      }
+    } else {
+      console.warn("No Grove URL available to open");
     }
   }, [groveUrl]);
 
   const handleOpenExplorerUrl = useCallback(() => {
     if (mintResult?.explorerUrl) {
-      FrameSDK.actions.openUrl(mintResult.explorerUrl);
+      try {
+        // Log the attempt to open the URL
+        console.log("Attempting to open Explorer URL:", mintResult.explorerUrl);
+
+        // For Farcaster Frames, we need to use the openUrl action
+        if (FrameSDK && FrameSDK.actions && FrameSDK.actions.openUrl) {
+          FrameSDK.actions.openUrl(mintResult.explorerUrl);
+          console.log(
+            "Called FrameSDK.actions.openUrl with:",
+            mintResult.explorerUrl
+          );
+        } else {
+          // Fallback for non-Frame environments
+          console.log(
+            "FrameSDK.actions.openUrl not available, using window.open"
+          );
+          window.open(mintResult.explorerUrl, "_blank");
+        }
+      } catch (error) {
+        console.error("Error opening Explorer URL:", error);
+
+        // Fallback if the SDK method fails
+        try {
+          window.open(mintResult.explorerUrl, "_blank");
+        } catch (fallbackError) {
+          console.error("Fallback also failed:", fallbackError);
+        }
+      }
+    } else {
+      console.warn("No Explorer URL available to open");
     }
   }, [mintResult]);
 
@@ -304,10 +382,25 @@ export default function FrameContent() {
           <div className="flex flex-col gap-2 w-full">
             {groveUrl && (
               <button
-                className="w-full py-2 px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm"
+                className="w-full py-2 px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm flex items-center justify-center gap-2"
                 onClick={handleOpenGroveUrl}
               >
-                Grove
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                  <polyline points="15 3 21 3 21 9"></polyline>
+                  <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+                View on Grove
               </button>
             )}
 
@@ -334,10 +427,25 @@ export default function FrameContent() {
                 </p>
                 {mintResult.explorerUrl && (
                   <button
-                    className="text-blue-400 hover:text-blue-300 underline"
+                    className="text-blue-400 hover:text-blue-300 underline flex items-center justify-center gap-1 mt-1"
                     onClick={handleOpenExplorerUrl}
                   >
-                    Explorer
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                      <polyline points="15 3 21 3 21 9"></polyline>
+                      <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                    View on Explorer
                   </button>
                 )}
               </div>

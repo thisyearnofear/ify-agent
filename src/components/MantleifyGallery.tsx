@@ -9,9 +9,8 @@ const CONTRACT_ABI = [
   "function ownerOf(uint256 tokenId) external view returns (address)",
   "function tokenURI(uint256) external view returns (string)",
   "function creators(uint256) external view returns (address)",
-  "function totalSupply() external view returns (uint256)",
+  "function _tokenIds() external view returns (uint256)",
   "function groveUrlToTokenId(string) external view returns (uint256)",
-  "event MantleifyNFTMinted(uint256 indexed tokenId, address indexed creator, string groveUrl, string tokenURI)",
 ];
 
 // Deployed contract address on Mantle Sepolia
@@ -23,16 +22,6 @@ interface NFTItem {
   groveUrl: string;
   owner: string;
   tokenURI: string;
-}
-
-// Define a type for the event with args
-interface MintEvent extends ethers.Log {
-  args?: {
-    tokenId: bigint;
-    creator: string;
-    groveUrl: string;
-    tokenURI: string;
-  };
 }
 
 export default function MantleifyGallery() {
@@ -59,23 +48,29 @@ export default function MantleifyGallery() {
         // Fetch the latest tokens (up to 8)
         const items: NFTItem[] = [];
 
-        // First, try to get the total supply
-        let totalSupply = 0;
+        // Determine how many tokens to check
+        let maxTokenId = 20; // Default fallback
         try {
-          const supply = await contract.totalSupply();
-          totalSupply = Number(supply);
-          console.log("Total supply:", totalSupply);
+          // Try to get the current token counter from the contract
+          // Note: This might not be exposed in the contract, so we have a fallback
+          const tokenCounter = await contract._tokenIds();
+          if (tokenCounter) {
+            maxTokenId = Number(tokenCounter);
+            console.log("Current token counter:", maxTokenId);
+          }
         } catch (error) {
           console.warn(
-            "Could not get total supply, will try sequential IDs",
+            "Could not get token counter, using fallback approach",
             error
           );
-          totalSupply = 20; // Fallback to checking first 20 IDs
         }
 
-        // Start from token ID 1 and try to fetch up to totalSupply tokens
-        // We'll stop when we have 8 valid tokens or hit the end
-        for (let i = 1; i <= totalSupply && items.length < 8; i++) {
+        // Start from the highest token IDs and work backwards to get the latest mints
+        // This is more efficient than starting from 1 and going up
+        const startId = Math.max(1, maxTokenId);
+        const endId = Math.max(1, startId - 20); // Check up to 20 tokens backwards
+
+        for (let i = startId; i >= endId && items.length < 8; i--) {
           try {
             const tokenId = i.toString();
 
@@ -87,10 +82,12 @@ export default function MantleifyGallery() {
             console.log(`Token ${tokenId} URI:`, tokenURI);
 
             // Extract the Grove URL from the tokenURI if possible
-            // The format we're using is: ipfs://mantleify/encodedGroveUrl
             let groveUrl = "";
+
+            // Handle different tokenURI formats
             if (tokenURI && tokenURI.startsWith("ipfs://mantleify/")) {
               try {
+                // New format: ipfs://mantleify/encodedGroveUrl
                 groveUrl = decodeURIComponent(
                   tokenURI.replace("ipfs://mantleify/", "")
                 );
@@ -104,36 +101,12 @@ export default function MantleifyGallery() {
                   decodeError
                 );
               }
-            }
-
-            // If we couldn't extract from tokenURI, try to find it from events
-            if (!groveUrl) {
-              try {
-                // Look for recent MantleifyNFTMinted events for this token
-                // Limit the block range to avoid the 10,000 block limit
-                const currentBlock = await provider.getBlockNumber();
-                const fromBlock = Math.max(0, currentBlock - 10000); // Last 10,000 blocks
-
-                const filter = contract.filters.MantleifyNFTMinted(i);
-                const events = await contract.queryFilter(filter, fromBlock);
-
-                if (events.length > 0) {
-                  // Extract the Grove URL from the event
-                  const event = events[0] as MintEvent;
-                  if (event.args?.groveUrl) {
-                    groveUrl = event.args.groveUrl;
-                    console.log(
-                      `Found Grove URL from event for token ${tokenId}:`,
-                      groveUrl
-                    );
-                  }
-                }
-              } catch (eventError) {
-                console.warn(
-                  `Could not fetch events for token ${tokenId}:`,
-                  eventError
-                );
-              }
+            } else if (tokenURI && tokenURI.startsWith("ipfs://placeholder/")) {
+              // Old format: We don't have the Grove URL in the tokenURI
+              // We'll need to use a placeholder image
+              console.log(
+                `Token ${tokenId} uses old format without Grove URL in tokenURI`
+              );
             }
 
             // Use the Grove URL as the image URL, or fall back to a placeholder
