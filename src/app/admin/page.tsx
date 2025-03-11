@@ -143,15 +143,6 @@ function AdminContent() {
         )}
       </div>
 
-      {/* Base NFT Gallery */}
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-center mb-4">Base NFTs</h2>
-        <BaseNFTGallery />
-      </div>
-
-      {/* L2 NFT Gallery (Mantle and Scroll) */}
-      <L2NFTGallery />
-
       {/* Refresh button at the bottom */}
       <div className="flex justify-center mt-6 mb-8">
         <button
@@ -162,6 +153,15 @@ function AdminContent() {
           {loading ? "Loading..." : "Refresh Gallery"}
         </button>
       </div>
+
+      {/* Base NFT Gallery */}
+      <div className="mb-6">
+        <h2 className="text-xl font-bold text-center mb-4">Base NFTs</h2>
+        <BaseNFTGallery />
+      </div>
+
+      {/* L2 NFT Gallery (Mantle and Scroll) */}
+      <L2NFTGallery />
     </div>
   );
 }

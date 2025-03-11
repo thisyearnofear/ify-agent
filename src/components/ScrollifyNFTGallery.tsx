@@ -12,6 +12,7 @@ const CONTRACT_ABI = [
   "function groveUrlToTokenId(string) external view returns (uint256)",
   "function getTokenIdByGroveUrl(string) external view returns (uint256)",
   "function isGroveUrlMinted(string) external view returns (bool)",
+  "function totalSupply() external view returns (uint256)",
 ];
 
 // Deployed contract address on Scroll Sepolia
@@ -49,14 +50,12 @@ export default function ScrollifyNFTGallery() {
         // Fetch the latest tokens (up to 4)
         const items: NFTItem[] = [];
 
-        // Determine how many tokens to check
-        const maxTokenId = 20; // Default fallback
+        // Try to get the latest 4 tokens
+        // Start with token ID 4 and work backwards
+        // This assumes tokens are minted sequentially starting from 1
+        const startId = 4;
 
-        // Start from the highest token IDs and work backwards to get the latest mints
-        const startId = maxTokenId;
-        const endId = Math.max(1, startId - 20); // Check up to 20 tokens backwards
-
-        for (let i = startId; i >= endId && items.length < 4; i--) {
+        for (let i = startId; i >= 1 && items.length < 4; i--) {
           try {
             const tokenId = i.toString();
 
