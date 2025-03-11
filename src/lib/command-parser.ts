@@ -184,18 +184,19 @@ export function parseCommand(input: string): ParsedCommand {
     action: "generate",
   };
 
-  // First, extract text flags to ensure they don't interfere with prompt parsing
+  // Extract text content and parameters
   let textContent: string | undefined;
   let textPosition: string | undefined;
   let textSize: number | undefined;
   let textColor: string | undefined;
   let textStyle: string | undefined;
 
-  // Extract text content
+  // First check for text content
   for (const pattern of TEXT_PATTERNS) {
     const match = input.match(pattern);
     if (match && match[1]) {
       textContent = match[1].trim();
+      logger.info(`Extracted text content: "${textContent}"`);
       break;
     }
   }
@@ -205,6 +206,7 @@ export function parseCommand(input: string): ParsedCommand {
     const match = input.match(pattern);
     if (match && match[1]) {
       textPosition = match[1].toLowerCase();
+      logger.info(`Extracted text position: ${textPosition}`);
       break;
     }
   }
@@ -214,6 +216,7 @@ export function parseCommand(input: string): ParsedCommand {
     const match = input.match(pattern);
     if (match && match[1]) {
       textSize = parseInt(match[1], 10);
+      logger.info(`Extracted text size: ${textSize}`);
       break;
     }
   }
@@ -223,6 +226,7 @@ export function parseCommand(input: string): ParsedCommand {
     const match = input.match(pattern);
     if (match && match[1]) {
       textColor = match[1].toLowerCase();
+      logger.info(`Extracted text color: ${textColor}`);
       break;
     }
   }
@@ -232,8 +236,29 @@ export function parseCommand(input: string): ParsedCommand {
     const match = input.match(pattern);
     if (match && match[1]) {
       textStyle = match[1].toLowerCase();
+      logger.info(`Extracted text style: ${textStyle}`);
       break;
     }
+  }
+
+  // If we found any text parameters, add them to the result
+  if (textContent) {
+    result.text = {
+      content: textContent,
+    };
+
+    if (textPosition) result.text.position = textPosition;
+    if (textSize) result.text.fontSize = textSize;
+    if (textColor) result.text.color = textColor;
+    if (textStyle) result.text.style = textStyle;
+
+    logger.info("Text parameters extracted", {
+      content: textContent,
+      position: textPosition,
+      fontSize: textSize,
+      color: textColor,
+      style: textStyle,
+    });
   }
 
   // Clean input from text flags before further processing
@@ -608,6 +633,20 @@ export function parseCommand(input: string): ParsedCommand {
     ) {
       result.overlayMode = "mantleify";
     }
+  }
+
+  // If we found text parameters but no action was determined yet,
+  // set the action to "overlay" and useParentImage to true
+  if (textContent && !result.action) {
+    result.action = "overlay";
+    result.useParentImage = true;
+    logger.info(
+      "Detected standalone text command, will apply to parent image",
+      {
+        textContent,
+        useParentImage: true,
+      }
+    );
   }
 
   // Before returning the result, log it

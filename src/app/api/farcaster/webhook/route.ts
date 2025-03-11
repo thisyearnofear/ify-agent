@@ -72,7 +72,21 @@ const isImageGenerationCommand = (command: string): boolean => {
     lowerCommand.includes("put on") ||
     lowerCommand.includes("this image");
 
-  return hasOverlayKeyword || hasGenerationKeyword || hasManipulationKeyword;
+  // Check for text commands
+  const hasTextCommand =
+    lowerCommand.includes("--text") ||
+    lowerCommand.includes("--caption") ||
+    lowerCommand.includes("--text-position") ||
+    lowerCommand.includes("--text-size") ||
+    lowerCommand.includes("--text-color") ||
+    lowerCommand.includes("--text-style");
+
+  return (
+    hasOverlayKeyword ||
+    hasGenerationKeyword ||
+    hasManipulationKeyword ||
+    hasTextCommand
+  );
 };
 
 // Check if a URL is an image URL
