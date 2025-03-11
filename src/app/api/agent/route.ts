@@ -205,13 +205,38 @@ export async function POST(request: Request): Promise<Response> {
     if (parentImageUrl) {
       logger.info("Using parent image URL from Farcaster", { parentImageUrl });
       parsedCommand.baseImageUrl = parentImageUrl;
-      parsedCommand.useParentImage = true;
-      parsedCommand.action = "overlay";
 
-      // If no overlay mode is specified but we have a parent image, default to a mode
-      if (!parsedCommand.overlayMode) {
-        parsedCommand.overlayMode = "degenify"; // Default to degenify if not specified
-        logger.info("No overlay mode specified, defaulting to degenify");
+      // Only force overlay mode if the command parser hasn't already made a decision
+      // This allows explicit "generate:" commands to override the parent image
+      if (
+        !parsedCommand.useParentImage &&
+        !parsedCommand.action.startsWith("generate")
+      ) {
+        // If the command doesn't have a descriptive prompt beyond the overlay keyword,
+        // assume it's meant to apply to the parent image
+        const hasDescriptivePrompt =
+          parsedCommand.prompt && parsedCommand.prompt.length > 10;
+
+        if (!hasDescriptivePrompt && parsedCommand.overlayMode) {
+          // If there's just an overlay mode without a descriptive prompt, apply to parent
+          parsedCommand.useParentImage = true;
+          parsedCommand.action = "overlay";
+          logger.info(
+            "No descriptive prompt with overlay mode, applying to parent image",
+            {
+              overlayMode: parsedCommand.overlayMode,
+            }
+          );
+        } else if (!parsedCommand.overlayMode && !parsedCommand.text) {
+          // If there's no overlay mode and no text, but we have a parent image,
+          // default to degenify overlay
+          parsedCommand.overlayMode = "degenify"; // Default to degenify if not specified
+          parsedCommand.useParentImage = true;
+          parsedCommand.action = "overlay";
+          logger.info(
+            "No overlay mode specified with parent image, defaulting to degenify"
+          );
+        }
       }
     }
 

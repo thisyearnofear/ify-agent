@@ -138,6 +138,30 @@ const CAPTION_PATTERN = /CAPTION:\s*(.*?)(?=PROMPT:|OVERLAY:|WOWOW:|$)/i;
 const WOWOW_PATTERN = /WOWOW:\s*(.*?)(?=PROMPT:|CAPTION:|TEXT:|$)/i;
 
 /**
+ * Helper function to check if input contains a descriptive prompt beyond just the overlay command
+ */
+const hasDescriptivePrompt = (
+  input: string,
+  overlayKeyword: string
+): boolean => {
+  // Remove the overlay keyword and control parameters
+  let cleanedInput = input
+    .replace(new RegExp(overlayKeyword, "gi"), "")
+    .replace(/scale\s+to\s+[\d\.]+/gi, "")
+    .replace(/scale\s+[\d\.]+/gi, "")
+    .replace(/position\s+at\s+[\d\.]+\s*,\s*[\d\.]+/gi, "")
+    .replace(/position\s+[\d\.]+\s*,\s*[\d\.]+/gi, "")
+    .replace(/opacity\s+to\s+[\d\.]+/gi, "")
+    .replace(/opacity\s+[\d\.]+/gi, "")
+    .replace(/color\s+to\s+\w+/gi, "")
+    .replace(/color\s+\w+/gi, "")
+    .trim();
+
+  // If what remains is very short, there's no descriptive prompt
+  return cleanedInput.length > 10;
+};
+
+/**
  * Clean a prompt by removing overlay and control instructions
  */
 function cleanPrompt(text: string): string {
@@ -185,6 +209,25 @@ export function parseCommand(input: string): ParsedCommand {
     action: "generate",
     prompt: "",
   };
+
+  // Check for explicit command prefixes
+  if (input.toLowerCase().startsWith("overlay:")) {
+    // Explicit overlay command - will apply to parent image
+    result.action = "overlay";
+    result.useParentImage = true;
+    // Remove the prefix for further processing
+    input = input.substring("overlay:".length).trim();
+    logger.info(
+      "Explicit overlay command detected, will apply to parent image"
+    );
+  } else if (input.toLowerCase().startsWith("generate:")) {
+    // Explicit generate command - will create a new image
+    result.action = "generate";
+    result.useParentImage = false;
+    // Remove the prefix for further processing
+    input = input.substring("generate:".length).trim();
+    logger.info("Explicit generate command detected, will create new image");
+  }
 
   // Extract text content and parameters
   let textContent: string | undefined;
@@ -679,12 +722,48 @@ export function parseCommand(input: string): ParsedCommand {
     ) {
       result.overlayMode = "higherify";
       extractPromptFromOverlay("higherify|higher");
+
+      // If not explicitly set as an overlay command and there's no descriptive prompt,
+      // assume it's meant to apply to the parent image
+      if (
+        result.action === "generate" &&
+        !result.useParentImage &&
+        !hasDescriptivePrompt(input, "higherify|higher")
+      ) {
+        result.action = "overlay";
+        result.useParentImage = true;
+        logger.info(
+          "Detected overlay-only command without descriptive prompt, will apply to parent image",
+          {
+            overlayMode: "higherify",
+            useParentImage: true,
+          }
+        );
+      }
     } else if (
       input.toLowerCase().includes("degenify") ||
       input.toLowerCase().includes("degen")
     ) {
       result.overlayMode = "degenify";
       extractPromptFromOverlay("degenify|degen");
+
+      // If not explicitly set as an overlay command and there's no descriptive prompt,
+      // assume it's meant to apply to the parent image
+      if (
+        result.action === "generate" &&
+        !result.useParentImage &&
+        !hasDescriptivePrompt(input, "degenify|degen")
+      ) {
+        result.action = "overlay";
+        result.useParentImage = true;
+        logger.info(
+          "Detected overlay-only command without descriptive prompt, will apply to parent image",
+          {
+            overlayMode: "degenify",
+            useParentImage: true,
+          }
+        );
+      }
     } else if (
       input.toLowerCase().includes("scrollify") ||
       input.toLowerCase().includes("scroll")
@@ -724,6 +803,24 @@ export function parseCommand(input: string): ParsedCommand {
     ) {
       result.overlayMode = "baseify";
       extractPromptFromOverlay("baseify|base");
+
+      // If not explicitly set as an overlay command and there's no descriptive prompt,
+      // assume it's meant to apply to the parent image
+      if (
+        result.action === "generate" &&
+        !result.useParentImage &&
+        !hasDescriptivePrompt(input, "baseify|base")
+      ) {
+        result.action = "overlay";
+        result.useParentImage = true;
+        logger.info(
+          "Detected overlay-only command without descriptive prompt, will apply to parent image",
+          {
+            overlayMode: "baseify",
+            useParentImage: true,
+          }
+        );
+      }
     } else if (
       input.toLowerCase().includes("clankerify") ||
       input.toLowerCase().includes("clanker")
@@ -757,7 +854,9 @@ export function parseCommand(input: string): ParsedCommand {
   logger.info(
     `Parsed command: action=${result.action}, overlayMode=${
       result.overlayMode || "none"
-    }, hasText=${result.text ? "yes" : "no"}`
+    }, hasText=${result.text ? "yes" : "no"}, useParentImage=${
+      result.useParentImage ? "yes" : "no"
+    }`
   );
 
   return result;

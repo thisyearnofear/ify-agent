@@ -815,12 +815,17 @@ export default function FrameContent() {
         <>
           <div className="mb-4">
             <textarea
-              className="w-full p-2 border rounded-md bg-gray-800 text-white placeholder-gray-400 text-center"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Describe what you want to generate..."
-              rows={3}
-            />
+              className="w-full p-2 border rounded-md bg-gray-800 text-white placeholder-gray-400 text-center"
+              rows={2}
+              disabled={isGenerating}
+              placeholder="Try 'baseify a futuristic city' or 'overlay: higherify scale 0.5'"
+            ></textarea>
+            <div className="text-xs text-gray-400 mt-1 text-center">
+              <span className="font-semibold">Tip:</span> Use "overlay:" to
+              apply to parent image, or include a description to generate new
+            </div>
           </div>
 
           {error && (
