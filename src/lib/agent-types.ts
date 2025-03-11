@@ -15,6 +15,14 @@ export interface AgentCommand {
       overlayColor?: string;
       overlayAlpha?: number;
     };
+    text?: {
+      content?: string;
+      position?: string;
+      fontSize?: number;
+      color?: string;
+      style?: string;
+      backgroundColor?: string;
+    };
   };
   callbackUrl?: string;
   parentImageUrl?: string; // URL of the parent cast's image
@@ -42,5 +50,13 @@ export interface ParsedCommand {
     y?: number;
     overlayColor?: string;
     overlayAlpha?: number;
+  };
+  text?: {
+    content?: string;
+    position?: string;
+    fontSize?: number;
+    color?: string;
+    style?: string;
+    backgroundColor?: string;
   };
 }

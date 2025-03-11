@@ -1,5 +1,6 @@
 import { ParsedCommand } from "./agent-types";
 import { logger } from "./logger";
+import { OverlayMode } from "@/components/ImageOverlay";
 
 // Regular expressions for parsing commands
 const URL_PATTERN = /https?:\/\/[^\s]+/;
@@ -68,7 +69,73 @@ const CONTROL_INSTRUCTION_PATTERNS = [
   /apply\s+(?:to|on|onto)\s+(?:this|parent|above|previous)\s+image/gi,
   /use\s+(?:this|parent|above|previous)\s+image/gi,
   /(?:this|parent|above|previous)\s+image/gi,
+  // Add text flag patterns to remove from prompt
+  /--text\s+"[^"]+"/gi,
+  /--text\s+'[^']+'/gi,
+  /--text\s+[^,\.\s][^,\.]+/gi,
+  /--text-position\s+\w+/gi,
+  /--text-size\s+\d+/gi,
+  /--text-color\s+\w+/gi,
+  /--text-style\s+\w+/gi,
+  /--caption\s+"[^"]+"/gi,
+  /--caption\s+'[^']*'/gi,
+  /--caption\s+[^,\.\s][^,\.]+/gi,
+  /--caption-position\s+\w+/gi,
+  /--caption-size\s+\d+/gi,
+  /--caption-color\s+\w+/gi,
+  /--caption-style\s+\w+/gi,
+  /--font-size\s+\d+/gi,
+  /--font-color\s+\w+/gi,
+  /--font-style\s+\w+/gi,
 ];
+
+// Simplify text patterns for more reliable detection
+const TEXT_PATTERNS = [
+  /--text\s+"([^"]+)"/i, // --text "Hello World"
+  /--text\s+'([^']+)'/i, // --text 'Hello World'
+  /--text\s+([^,\.]+)/i, // --text Hello World
+  /--caption\s+"([^"]+)"/i, // --caption "Hello World"
+  /--caption\s+'([^']+)'/i, // --caption 'Hello World'
+  /--caption\s+([^,\.]+)/i, // --caption Hello World
+];
+
+const TEXT_POSITION_PATTERNS = [
+  /--text-position\s+(\w+)/i, // --text-position bottom
+  /--caption-position\s+(\w+)/i, // --caption-position bottom
+];
+
+const TEXT_SIZE_PATTERNS = [
+  /--text-size\s+(\d+)/i, // --text-size 48
+  /--font-size\s+(\d+)/i, // --font-size 48
+  /--caption-size\s+(\d+)/i, // --caption-size 48
+];
+
+const TEXT_COLOR_PATTERNS = [
+  /--text-color\s+(\w+)/i, // --text-color blue
+  /--font-color\s+(\w+)/i, // --font-color blue
+  /--caption-color\s+(\w+)/i, // --caption-color blue
+];
+
+const TEXT_STYLE_PATTERNS = [
+  /--text-style\s+(\w+)/i, // --text-style bold
+  /--font-style\s+(\w+)/i, // --font-style bold
+  /--caption-style\s+(\w+)/i, // --caption-style bold
+];
+
+// Add section marker patterns
+const PROMPT_SECTION_PATTERN = /\[PROMPT\]:\s*(.*?)(?=\[OVERLAY\]|\[TEXT\]|$)/i;
+const OVERLAY_SECTION_PATTERN =
+  /\[OVERLAY\]:\s*(.*?)(?=\[PROMPT\]|\[TEXT\]|$)/i;
+const TEXT_SECTION_PATTERN = /\[TEXT\]:\s*(.*?)(?=\[PROMPT\]|\[OVERLAY\]|$)/i;
+
+// Alternative formats
+const PROMPT_ALT_PATTERN = /PROMPT:\s*(.*?)(?=OVERLAY:|TEXT:|$)/i;
+const OVERLAY_ALT_PATTERN = /OVERLAY:\s*(.*?)(?=PROMPT:|TEXT:|$)/i;
+const TEXT_ALT_PATTERN = /TEXT:\s*(.*?)(?=PROMPT:|OVERLAY:|$)/i;
+
+// Even more alternative formats
+const CAPTION_PATTERN = /CAPTION:\s*(.*?)(?=PROMPT:|OVERLAY:|WOWOW:|$)/i;
+const WOWOW_PATTERN = /WOWOW:\s*(.*?)(?=PROMPT:|CAPTION:|TEXT:|$)/i;
 
 /**
  * Clean a prompt by removing overlay and control instructions
@@ -78,13 +145,27 @@ function cleanPrompt(text: string): string {
 
   // Remove overlay mode terms
   cleanedText = cleanedText
-    .replace(/\b(higherify|degenify|scrollify|lensify)\b/gi, "")
+    .replace(
+      /\b(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)\b/gi,
+      ""
+    )
     .replace(/\b(overlay|style|effect)\b/gi, "");
 
   // Remove control instructions
   for (const pattern of CONTROL_INSTRUCTION_PATTERNS) {
     cleanedText = cleanedText.replace(pattern, "");
   }
+
+  // Remove text flag patterns more aggressively
+  cleanedText = cleanedText
+    .replace(/--text\s+"[^"]*"/g, "")
+    .replace(/--text\s+'[^']*'/g, "")
+    .replace(/--text\s+[^-\s][^-]*(?=\s|$)/g, "")
+    .replace(/--text-\w+\s+[^-\s][^-]*(?=\s|$)/g, "")
+    .replace(/--caption\s+"[^"]*"/g, "")
+    .replace(/--caption\s+'[^']*'/g, "")
+    .replace(/--caption\s+[^-\s][^-]*(?=\s|$)/g, "")
+    .replace(/--caption-\w+\s+[^-\s][^-]*(?=\s|$)/g, "");
 
   // Clean up multiple spaces, dots, commas at the end
   cleanedText = cleanedText
@@ -99,317 +180,442 @@ function cleanPrompt(text: string): string {
  * Parse a natural language command into structured parameters
  */
 export function parseCommand(input: string): ParsedCommand {
-  logger.info("Parsing command", { command: input });
-
   const result: ParsedCommand = {
-    action: "generate", // Default action
+    action: "generate",
   };
 
-  // Check for image URL
-  const urlMatch = input.match(URL_PATTERN);
-  if (urlMatch) {
-    result.baseImageUrl = urlMatch[0];
-    result.action = "overlay";
-  }
+  // First, extract text flags to ensure they don't interfere with prompt parsing
+  let textContent: string | undefined;
+  let textPosition: string | undefined;
+  let textSize: number | undefined;
+  let textColor: string | undefined;
+  let textStyle: string | undefined;
 
-  // Check for parent image reference
-  for (const pattern of PARENT_IMAGE_PATTERNS) {
-    if (pattern.test(input)) {
-      result.useParentImage = true;
-      result.action = "overlay";
+  // Extract text content
+  for (const pattern of TEXT_PATTERNS) {
+    const match = input.match(pattern);
+    if (match && match[1]) {
+      textContent = match[1].trim();
       break;
     }
   }
 
-  // Check for overlay mode
-  for (const pattern of OVERLAY_PATTERNS) {
+  // Extract text position
+  for (const pattern of TEXT_POSITION_PATTERNS) {
     const match = input.match(pattern);
-    if (match) {
-      const overlayName = match[1].toLowerCase();
-      if (
-        overlayName === "higherify" ||
-        overlayName === "degenify" ||
-        overlayName === "scrollify" ||
-        overlayName === "lensify" ||
-        overlayName === "higherise" ||
-        overlayName === "dickbuttify" ||
-        overlayName === "nikefy" ||
-        overlayName === "nounify" ||
-        overlayName === "baseify" ||
-        overlayName === "clankerify" ||
-        overlayName === "mantleify"
-      ) {
-        result.overlayMode = overlayName;
+    if (match && match[1]) {
+      textPosition = match[1].toLowerCase();
+      break;
+    }
+  }
+
+  // Extract text size
+  for (const pattern of TEXT_SIZE_PATTERNS) {
+    const match = input.match(pattern);
+    if (match && match[1]) {
+      textSize = parseInt(match[1], 10);
+      break;
+    }
+  }
+
+  // Extract text color
+  for (const pattern of TEXT_COLOR_PATTERNS) {
+    const match = input.match(pattern);
+    if (match && match[1]) {
+      textColor = match[1].toLowerCase();
+      break;
+    }
+  }
+
+  // Extract text style
+  for (const pattern of TEXT_STYLE_PATTERNS) {
+    const match = input.match(pattern);
+    if (match && match[1]) {
+      textStyle = match[1].toLowerCase();
+      break;
+    }
+  }
+
+  // Clean input from text flags before further processing
+  let cleanedInput = input;
+  for (const pattern of TEXT_PATTERNS.concat(
+    TEXT_POSITION_PATTERNS,
+    TEXT_SIZE_PATTERNS,
+    TEXT_COLOR_PATTERNS,
+    TEXT_STYLE_PATTERNS
+  )) {
+    cleanedInput = cleanedInput.replace(pattern, "");
+  }
+
+  // Check for structured format with section markers
+  let promptSection = cleanedInput.match(PROMPT_SECTION_PATTERN)?.[1]?.trim();
+  let overlaySection = cleanedInput.match(OVERLAY_SECTION_PATTERN)?.[1]?.trim();
+  let textSection = cleanedInput.match(TEXT_SECTION_PATTERN)?.[1]?.trim();
+
+  // Check alternative formats if section markers not found
+  if (!promptSection && !overlaySection && !textSection) {
+    promptSection = cleanedInput.match(PROMPT_ALT_PATTERN)?.[1]?.trim();
+    overlaySection = cleanedInput.match(OVERLAY_ALT_PATTERN)?.[1]?.trim();
+    textSection = cleanedInput.match(TEXT_ALT_PATTERN)?.[1]?.trim();
+  }
+
+  // Check even more alternative formats
+  if (!promptSection && !overlaySection && !textSection) {
+    promptSection = cleanedInput; // Default to entire input as prompt
+    overlaySection = cleanedInput.match(WOWOW_PATTERN)?.[1]?.trim();
+    textSection = cleanedInput.match(CAPTION_PATTERN)?.[1]?.trim();
+  }
+
+  // Process prompt section
+  if (promptSection) {
+    // Extract URL if present
+    const urlMatch = promptSection.match(URL_PATTERN);
+    if (urlMatch) {
+      result.baseImageUrl = urlMatch[0];
+      // Remove URL from prompt
+      promptSection = promptSection.replace(URL_PATTERN, "").trim();
+    }
+
+    // Check for parent image references in the prompt
+    for (const pattern of PARENT_IMAGE_PATTERNS) {
+      if (pattern.test(promptSection)) {
+        result.useParentImage = true;
         result.action = "overlay";
-      }
-      break;
-    }
-  }
-
-  // Check for implicit overlay mode
-  if (!result.overlayMode) {
-    if (
-      input.toLowerCase().includes("higherify") ||
-      input.toLowerCase().includes("higher overlay") ||
-      input.toLowerCase().includes("higher style")
-    ) {
-      result.overlayMode = "higherify";
-      result.action = "overlay";
-
-      // Extract the prompt from the input for implicit overlay commands
-      const promptText = cleanPrompt(input);
-      if (promptText.length > 5) {
-        result.prompt = promptText;
-      }
-    } else if (
-      input.toLowerCase().includes("degenify") ||
-      input.toLowerCase().includes("degen overlay") ||
-      input.toLowerCase().includes("degen style")
-    ) {
-      result.overlayMode = "degenify";
-      result.action = "overlay";
-
-      // Extract the prompt from the input for implicit overlay commands
-      const promptText = cleanPrompt(input);
-      if (promptText.length > 5) {
-        result.prompt = promptText;
-      }
-    } else if (
-      input.toLowerCase().includes("scrollify") ||
-      input.toLowerCase().includes("scroll overlay") ||
-      input.toLowerCase().includes("scroll style")
-    ) {
-      result.overlayMode = "scrollify";
-      result.action = "overlay";
-
-      // Extract the prompt from the input for implicit overlay commands
-      const promptText = cleanPrompt(input);
-      if (promptText.length > 5) {
-        result.prompt = promptText;
-      }
-    } else if (
-      input.toLowerCase().includes("lensify") ||
-      input.toLowerCase().includes("lens overlay") ||
-      input.toLowerCase().includes("lens style")
-    ) {
-      result.overlayMode = "lensify";
-      result.action = "overlay";
-
-      // Extract the prompt from the input for implicit overlay commands
-      const promptText = cleanPrompt(input);
-      if (promptText.length > 5) {
-        result.prompt = promptText;
-      }
-    } else if (
-      input.toLowerCase().includes("higherise") ||
-      input.toLowerCase().includes("higher higherise")
-    ) {
-      result.overlayMode = "higherise";
-      result.action = "overlay";
-
-      // Extract the prompt from the input for implicit overlay commands
-      const promptText = cleanPrompt(input);
-      if (promptText.length > 5) {
-        result.prompt = promptText;
-      }
-    } else if (
-      input.toLowerCase().includes("dickbuttify") ||
-      input.toLowerCase().includes("dickbutt")
-    ) {
-      result.overlayMode = "dickbuttify";
-      result.action = "overlay";
-
-      // Extract the prompt from the input for implicit overlay commands
-      const promptText = cleanPrompt(input);
-      if (promptText.length > 5) {
-        result.prompt = promptText;
-      }
-    } else if (
-      input.toLowerCase().includes("nikefy") ||
-      input.toLowerCase().includes("nike")
-    ) {
-      result.overlayMode = "nikefy";
-      result.action = "overlay";
-
-      // Extract the prompt from the input for implicit overlay commands
-      const promptText = cleanPrompt(input);
-      if (promptText.length > 5) {
-        result.prompt = promptText;
-      }
-    } else if (
-      input.toLowerCase().includes("nounify") ||
-      input.toLowerCase().includes("nouns")
-    ) {
-      result.overlayMode = "nounify";
-      result.action = "overlay";
-
-      // Extract the prompt from the input for implicit overlay commands
-      const promptText = cleanPrompt(input);
-      if (promptText.length > 5) {
-        result.prompt = promptText;
-      }
-    } else if (
-      input.toLowerCase().includes("baseify") ||
-      input.toLowerCase().includes("base")
-    ) {
-      result.overlayMode = "baseify";
-      result.action = "overlay";
-
-      // Extract the prompt from the input for implicit overlay commands
-      const promptText = cleanPrompt(input);
-      if (promptText.length > 5) {
-        result.prompt = promptText;
-      }
-    } else if (
-      input.toLowerCase().includes("clankerify") ||
-      input.toLowerCase().includes("clanker")
-    ) {
-      result.overlayMode = "clankerify";
-      result.action = "overlay";
-
-      // Extract the prompt from the input for implicit overlay commands
-      const promptText = cleanPrompt(input);
-      if (promptText.length > 5) {
-        result.prompt = promptText;
-      }
-    } else if (
-      input.toLowerCase().includes("mantleify") ||
-      input.toLowerCase().includes("mantle")
-    ) {
-      result.overlayMode = "mantleify";
-      result.action = "overlay";
-
-      // Extract the prompt from the input for implicit overlay commands
-      const promptText = cleanPrompt(input);
-      if (promptText.length > 5) {
-        result.prompt = promptText;
+        // Remove parent image reference from prompt
+        promptSection = promptSection.replace(pattern, "").trim();
+        break;
       }
     }
-  }
 
-  // If we have an overlay mode but no explicit parent image reference,
-  // check if the command is short and likely referring to the current image
-  if (result.overlayMode && !result.useParentImage && input.length < 50) {
-    // If the command is short and has an overlay mode but no clear prompt,
-    // assume it's referring to the parent image
-    const cleanedInput = cleanPrompt(input);
-    if (cleanedInput.length < 20) {
-      result.useParentImage = true;
-      result.action = "overlay";
-    }
-  }
-
-  // Initialize controls object if any control parameters are found
-  const controls: ParsedCommand["controls"] = {};
-
-  // Check for position
-  for (const pattern of POSITION_PATTERNS) {
-    const match = input.match(pattern);
-    if (match) {
-      controls.x = parseFloat(match[1]);
-      controls.y = parseFloat(match[2]);
-      result.action = "adjust";
-      break;
-    }
-  }
-
-  // Check for scale
-  for (const pattern of SCALE_PATTERNS) {
-    const match = input.match(pattern);
-    if (match) {
-      controls.scale = parseFloat(match[1]);
-      result.action = "adjust";
-      break;
-    }
-  }
-
-  // Check for color
-  for (const pattern of COLOR_PATTERNS) {
-    const match = input.match(pattern);
-    if (match) {
-      controls.overlayColor = match[1];
-      result.action = "adjust";
-      break;
-    }
-  }
-
-  // Check for opacity
-  for (const pattern of OPACITY_PATTERNS) {
-    const match = input.match(pattern);
-    if (match) {
-      let opacity = parseFloat(match[1]);
-      // Normalize opacity to 0-1 range
-      if (opacity > 1) {
-        opacity = opacity / 100;
-      }
-      controls.overlayAlpha = opacity;
-      result.action = "adjust";
-      break;
-    }
-  }
-
-  // Add controls to result if any were found
-  if (Object.keys(controls).length > 0) {
-    result.controls = controls;
-  }
-
-  // Extract the prompt from the input
-  // First, try to find a specific generate command
-  if (!result.baseImageUrl && !result.useParentImage) {
+    // Extract generation command
     for (const pattern of GENERATE_PATTERNS) {
-      const match = input.match(pattern);
-      if (match) {
-        const promptText = cleanPrompt(match[1]);
-        if (promptText) {
-          result.prompt = promptText;
-          result.action = "generate";
+      const match = promptSection.match(pattern);
+      if (match && match[1]) {
+        result.prompt = cleanPrompt(match[1].trim());
+        break;
+      }
+    }
+
+    // If no generation command was found, use the cleaned prompt
+    if (!result.prompt) {
+      result.prompt = cleanPrompt(promptSection);
+    }
+  }
+
+  // Process overlay section
+  if (overlaySection) {
+    // Extract overlay mode
+    for (const pattern of OVERLAY_PATTERNS) {
+      const match = overlaySection.match(pattern);
+      if (match && match[1]) {
+        result.overlayMode = match[1].toLowerCase() as OverlayMode;
+        break;
+      }
+    }
+
+    // Extract position
+    for (const pattern of POSITION_PATTERNS) {
+      const match = overlaySection.match(pattern);
+      if (match && match[1] && match[2]) {
+        if (!result.controls) result.controls = {};
+        result.controls.x = parseFloat(match[1]);
+        result.controls.y = parseFloat(match[2]);
+        break;
+      }
+    }
+
+    // Extract scale
+    for (const pattern of SCALE_PATTERNS) {
+      const match = overlaySection.match(pattern);
+      if (match && match[1]) {
+        if (!result.controls) result.controls = {};
+        result.controls.scale = parseFloat(match[1]);
+        break;
+      }
+    }
+
+    // Extract color
+    for (const pattern of COLOR_PATTERNS) {
+      const match = overlaySection.match(pattern);
+      if (match && match[1]) {
+        // Only set overlay color if we don't have a text color flag
+        // This prevents text color from being applied to the overlay
+        if (
+          !input.match(/--text-color\s+\w+/i) &&
+          !input.match(/--font-color\s+\w+/i) &&
+          !input.match(/--caption-color\s+\w+/i)
+        ) {
+          if (!result.controls) result.controls = {};
+          result.controls.overlayColor = match[1].toLowerCase();
         }
+        break;
+      }
+    }
+
+    // Extract opacity
+    for (const pattern of OPACITY_PATTERNS) {
+      const match = overlaySection.match(pattern);
+      if (match && match[1]) {
+        if (!result.controls) result.controls = {};
+        result.controls.overlayAlpha = parseFloat(match[1]);
+        break;
+      }
+    }
+  } else {
+    // If no overlay section, check the prompt for overlay commands (backward compatibility)
+    // Extract overlay mode from the prompt
+    for (const pattern of OVERLAY_PATTERNS) {
+      const match = input.match(pattern);
+      if (match && match[1]) {
+        result.overlayMode = match[1].toLowerCase() as OverlayMode;
+        break;
+      }
+    }
+
+    // Extract position from the prompt
+    for (const pattern of POSITION_PATTERNS) {
+      const match = input.match(pattern);
+      if (match && match[1] && match[2]) {
+        if (!result.controls) result.controls = {};
+        result.controls.x = parseFloat(match[1]);
+        result.controls.y = parseFloat(match[2]);
+        break;
+      }
+    }
+
+    // Extract scale from the prompt
+    for (const pattern of SCALE_PATTERNS) {
+      const match = input.match(pattern);
+      if (match && match[1]) {
+        if (!result.controls) result.controls = {};
+        result.controls.scale = parseFloat(match[1]);
+        break;
+      }
+    }
+
+    // Extract color from the prompt
+    for (const pattern of COLOR_PATTERNS) {
+      const match = input.match(pattern);
+      if (match && match[1]) {
+        // Only set overlay color if we don't have a text color flag
+        // This prevents text color from being applied to the overlay
+        if (
+          !input.match(/--text-color\s+\w+/i) &&
+          !input.match(/--font-color\s+\w+/i) &&
+          !input.match(/--caption-color\s+\w+/i)
+        ) {
+          if (!result.controls) result.controls = {};
+          result.controls.overlayColor = match[1].toLowerCase();
+        }
+        break;
+      }
+    }
+
+    // Extract opacity from the prompt
+    for (const pattern of OPACITY_PATTERNS) {
+      const match = input.match(pattern);
+      if (match && match[1]) {
+        if (!result.controls) result.controls = {};
+        result.controls.overlayAlpha = parseFloat(match[1]);
         break;
       }
     }
   }
 
-  // If no specific generate command was found, try to extract a prompt from the whole input
-  if (
-    !result.prompt &&
-    !result.baseImageUrl &&
-    !result.useParentImage &&
-    input.length > 10
-  ) {
-    const promptText = cleanPrompt(input);
+  // Process text section
+  if (textSection) {
+    // Extract text content - first part before any comma is the text content
+    const textParts = textSection.split(",");
+    if (textParts.length > 0) {
+      if (!result.text) result.text = {};
+      result.text.content = textParts[0].trim();
 
-    if (promptText.length > 5) {
-      result.prompt = promptText;
-      result.action = "generate";
+      // Process the rest of the parts for text properties
+      for (let i = 1; i < textParts.length; i++) {
+        const part = textParts[i].trim().toLowerCase();
+
+        // Check for position keywords
+        if (
+          [
+            "top",
+            "bottom",
+            "left",
+            "right",
+            "center",
+            "top-left",
+            "top-right",
+            "bottom-left",
+            "bottom-right",
+          ].includes(part)
+        ) {
+          result.text.position = part;
+          continue;
+        }
+
+        // Check for size
+        const sizeMatch = part.match(/size\s+(\d+)/i);
+        if (sizeMatch && sizeMatch[1]) {
+          result.text.fontSize = parseInt(sizeMatch[1], 10);
+          continue;
+        }
+
+        // Check for color
+        const colorMatch = part.match(/color\s+(\w+)/i);
+        if (colorMatch && colorMatch[1]) {
+          result.text.color = colorMatch[1];
+          continue;
+        }
+
+        // Check for style
+        const styleMatch =
+          part.match(/style\s+(\w+)/i) ||
+          part.match(/^(serif|monospace|handwriting|thin|bold)$/i);
+        if (styleMatch && styleMatch[1]) {
+          result.text.style = styleMatch[1];
+          continue;
+        }
+      }
+    }
+  } else {
+    // If no text section, check the prompt for text commands (backward compatibility)
+    // Extract text content
+    for (const pattern of TEXT_PATTERNS) {
+      const match = input.match(pattern);
+      if (match && match[1]) {
+        if (!result.text) result.text = {};
+        result.text.content = match[1].trim();
+        break;
+      }
+    }
+
+    // Extract text position
+    for (const pattern of TEXT_POSITION_PATTERNS) {
+      const match = input.match(pattern);
+      if (match && match[1]) {
+        if (!result.text) result.text = {};
+        result.text.position = match[1].toLowerCase();
+        break;
+      }
+    }
+
+    // Extract text size
+    for (const pattern of TEXT_SIZE_PATTERNS) {
+      const match = input.match(pattern);
+      if (match && match[1]) {
+        if (!result.text) result.text = {};
+        result.text.fontSize = parseInt(match[1], 10);
+        break;
+      }
+    }
+
+    // Extract text color
+    for (const pattern of TEXT_COLOR_PATTERNS) {
+      const match = input.match(pattern);
+      if (match && match[1]) {
+        if (!result.text) result.text = {};
+        result.text.color = match[1].toLowerCase();
+        break;
+      }
+    }
+
+    // Extract text style
+    for (const pattern of TEXT_STYLE_PATTERNS) {
+      const match = input.match(pattern);
+      if (match && match[1]) {
+        if (!result.text) result.text = {};
+        result.text.style = match[1].toLowerCase();
+        break;
+      }
+    }
+
+    // Check for implicit text content
+    if (!result.text?.content) {
+      // Look for phrases like "a cat with the text hello world"
+      const implicitTextMatch = input.match(
+        /with (?:the\s+)?text\s+["']?([^"']+)["']?/i
+      );
+      if (implicitTextMatch && implicitTextMatch[1]) {
+        if (!result.text) result.text = {};
+        result.text.content = implicitTextMatch[1].trim();
+      }
     }
   }
 
-  // If we have an overlay mode but no action, set action to overlay
-  if (result.overlayMode && result.action !== "overlay") {
-    result.action = "overlay";
+  // If we extracted text flags at the beginning, add them to the result
+  if (textContent) {
+    if (!result.text) result.text = {};
+    result.text.content = textContent;
+
+    if (textPosition) result.text.position = textPosition;
+    if (textSize) result.text.fontSize = textSize;
+    if (textColor) result.text.color = textColor;
+    if (textStyle) result.text.style = textStyle;
   }
 
-  // If we have a useParentImage flag but no overlay mode, default to lensify
-  if (result.useParentImage && !result.overlayMode) {
-    result.overlayMode = "lensify";
+  // Check for implicit overlay mode detection
+  if (!result.overlayMode) {
+    // Check if the input contains any of the overlay mode keywords
+    if (
+      input.toLowerCase().includes("higherify") ||
+      input.toLowerCase().includes("higher")
+    ) {
+      result.overlayMode = "higherify";
+    } else if (
+      input.toLowerCase().includes("degenify") ||
+      input.toLowerCase().includes("degen")
+    ) {
+      result.overlayMode = "degenify";
+    } else if (
+      input.toLowerCase().includes("scrollify") ||
+      input.toLowerCase().includes("scroll")
+    ) {
+      result.overlayMode = "scrollify";
+    } else if (
+      input.toLowerCase().includes("lensify") ||
+      input.toLowerCase().includes("lens")
+    ) {
+      result.overlayMode = "lensify";
+    } else if (input.toLowerCase().includes("higherise")) {
+      result.overlayMode = "higherise";
+    } else if (
+      input.toLowerCase().includes("dickbuttify") ||
+      input.toLowerCase().includes("dickbutt")
+    ) {
+      result.overlayMode = "dickbuttify";
+    } else if (
+      input.toLowerCase().includes("nikefy") ||
+      input.toLowerCase().includes("nike")
+    ) {
+      result.overlayMode = "nikefy";
+    } else if (
+      input.toLowerCase().includes("nounify") ||
+      input.toLowerCase().includes("noun")
+    ) {
+      result.overlayMode = "nounify";
+    } else if (
+      input.toLowerCase().includes("baseify") ||
+      input.toLowerCase().includes("base")
+    ) {
+      result.overlayMode = "baseify";
+    } else if (
+      input.toLowerCase().includes("clankerify") ||
+      input.toLowerCase().includes("clanker")
+    ) {
+      result.overlayMode = "clankerify";
+    } else if (
+      input.toLowerCase().includes("mantleify") ||
+      input.toLowerCase().includes("mantle")
+    ) {
+      result.overlayMode = "mantleify";
+    }
   }
 
-  logger.info("Parsed command", {
-    action: result.action,
-    prompt: result.prompt,
-    overlayMode: result.overlayMode,
-    baseImageUrl: result.baseImageUrl,
-    useParentImage: result.useParentImage,
-    hasControls: result.controls ? true : false,
-    ...(result.controls
-      ? {
-          scale: result.controls.scale,
-          x: result.controls.x,
-          y: result.controls.y,
-          overlayColor: result.controls.overlayColor,
-          overlayAlpha: result.controls.overlayAlpha,
-        }
-      : {}),
-  });
+  // Before returning the result, log it
+  logger.info(
+    `Parsed command: action=${result.action}, overlayMode=${
+      result.overlayMode || "none"
+    }, hasText=${result.text ? "yes" : "no"}`
+  );
+
   return result;
 }

@@ -42,18 +42,11 @@ if (!NEYNAR_API_KEY || !SIGNER_UUID) {
 const neynarClient = new NeynarAPIClient({ apiKey: NEYNAR_API_KEY });
 
 // Introductory cast text
-const introCast = `Actually, scratch that. I'm @snel, a Super poiNtlEss Lazy agent 
+const introCast = `Images stored immutably on Grove
 
-I apply /degen /higher /scroll & /lens overlays to images
-Customizable with scale, position, filter color, and opacity
+https://api.grove.storage/874392642ce31762dfe3247976fa931e1e66800037327241255c9249fe252187
 
-I'm still in beta, so you can use me just yet 🐌
-But feel free to ready stuff about me, or not
-
-https://snel-pointless.vercel.app/
-https://wowowify.vercel.app/
-
-Hola @papa to get allowlisted to try me out 🎨✨`;
+ 🐌`;
 
 // Send the cast
 async function sendIntroCast() {

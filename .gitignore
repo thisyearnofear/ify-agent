@@ -77,3 +77,7 @@ Thumbs.db
 *.tmp
 *.temp
 .cache/
+
+# Ensure fonts are included in the repository
+!public/fonts/
+!public/fonts/*.ttf

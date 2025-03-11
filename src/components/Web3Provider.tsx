@@ -11,6 +11,7 @@ import {
   zksync,
   linea,
   scroll,
+  baseSepolia,
 } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -87,6 +88,7 @@ const config = createConfig(
       scroll,
       lensSepolia,
       mantleSepolia,
+      baseSepolia,
     ],
     transports: {
       // RPC URLs for each chain
@@ -123,6 +125,12 @@ const config = createConfig(
         }`
       ),
       [mantleSepolia.id]: http("https://rpc.sepolia.mantle.xyz"),
+      [baseSepolia.id]: http(
+        `https://base-sepolia.g.alchemy.com/v2/${
+          process.env.NEXT_PUBLIC_ALCHEMY_ID ||
+          "Tx9luktS3qyIwEKVtjnQrpq8t3MNEV-B"
+        }`
+      ),
     },
     // Required API Keys
     walletConnectProjectId:

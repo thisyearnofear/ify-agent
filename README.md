@@ -23,6 +23,136 @@ The agent understands commands like:
 - "Scale to [size]"
 - "Set color to [color]"
 - "Set opacity to [value]"
+- "Add text [content]"
+- "Text position [position]"
+- "Text size [size]"
+- "Text color [color]"
+- "Text style [style]"
+
+### Text Commands
+
+To add text to images, use the following command syntax:
+
+```
+Generate a beach sunset --text "Summer Vibes" --text-position bottom --text-size 48 --text-color blue
+```
+
+The text commands use a clear, flag-based syntax that's easy to understand:
+
+- `--text "Your text here"` - Adds text to the image
+- `--text-position [position]` - Sets the position (top, bottom, left, right, center, etc.)
+- `--text-size [size]` - Sets the font size
+- `--text-color [color]` - Sets the text color
+- `--text-style [style]` - Sets the text style (serif, monospace, handwriting, thin, bold)
+
+You can also use `--caption` as an alternative to `--text`:
+
+```
+Generate a mountain landscape --caption "Adventure Awaits" --caption-position bottom --caption-size 60
+```
+
+This flag-based approach ensures that text parameters are clearly separated from other commands and won't be misinterpreted.
+
+### Text Overlay System
+
+The text overlay system provides robust text rendering capabilities with the following features:
+
+#### Font Support
+
+- **Default Font**: Roboto (sans-serif)
+- **Font Families**:
+  - Sans-serif: Roboto (default)
+  - Serif: System serif font
+  - Monospace: Roboto Mono
+  - Handwriting: Fallback to Roboto with stylistic adjustments
+
+#### Text Positioning
+
+- **Predefined Positions**:
+  - `top`: Aligns text at the top center of the image
+  - `bottom`: Aligns text at the bottom center of the image
+  - `center`: Centers text both horizontally and vertically
+  - `left`: Aligns text at the left center of the image
+  - `right`: Aligns text at the right center of the image
+  - `top-left`: Positions text at the top left corner
+  - `top-right`: Positions text at the top right corner
+  - `bottom-left`: Positions text at the bottom left corner
+  - `bottom-right`: Positions text at the bottom right corner
+- **Custom Positioning**: Supports exact x,y coordinates for precise placement
+
+#### Text Styling
+
+- **Font Size**: Any numeric value (default: 48px)
+- **Font Weight**: normal or bold
+- **Text Color**: Any valid color name or hex code
+- **Text Alignment**: left, center, or right
+- **Background**: Optional colored background behind text
+- **Padding**: Adjustable padding around text
+- **Line Height**: Configurable line spacing for multi-line text
+- **Text Wrapping**: Automatic wrapping for long text to fit within image boundaries
+- **Rotation**: Optional text rotation in degrees
+
+#### Advanced Text Effects
+
+- **Stroke/Outline**: Add outlines to text for better visibility
+- **Shadow Effects**: Add drop shadows with configurable:
+  - Shadow color
+  - Shadow offset (X and Y)
+  - Shadow blur radius
+- **Adaptive Sizing**: Automatically adjusts font size to fit available space
+
+#### Implementation Details
+
+- **Font Registration**: Fonts are bundled with the application and registered at runtime
+- **Serverless Compatibility**: Optimized for Vercel serverless environment
+- **Error Handling**: Graceful fallbacks if specific fonts aren't available
+- **Performance**: Efficient text rendering even with complex styling
+
+### Structured Command Format
+
+For more complex commands, you can still use a structured format with section markers, but the flag-based syntax is recommended for text parameters:
+
+```
+[PROMPT]: beach sunset
+[OVERLAY]: scrollify, scale 0.5, position 10 20
+--text "Summer Vibes" --text-position bottom --text-size 48 --text-color blue
+```
+
+Alternative formats are also supported:
+
+```
+PROMPT: beach sunset
+OVERLAY: scrollify, scale 0.5, position 10 20
+--text "Summer Vibes" --text-position bottom --text-size 48 --text-color blue
+```
+
+Or even more concise:
+
+```
+beach sunset.
+WOWOW: scrollify, scale 0.5, opacity 0.4.
+--caption "stunning" --caption-position bottom --caption-style handwriting
+```
+
+This structured approach helps avoid confusion between different parts of the command and ensures that text parameters aren't misinterpreted.
+
+### Text Customization Options
+
+When adding text to images, you can customize:
+
+- **Position**: top, bottom, left, right, center, top-left, top-right, bottom-left, bottom-right
+- **Size**: Any numeric value (e.g., size 48)
+- **Color**: Any color name or hex code (e.g., color blue, color #FF5500)
+- **Style**: serif, monospace, handwriting, thin, bold
+- **Background**: Optional background color with transparency (e.g., rgba(0,0,0,0.5))
+- **Effects**: Stroke/outline and shadow effects for better visibility
+
+Example:
+
+```
+[PROMPT]: mountain landscape
+[TEXT]: Adventure Awaits, bottom, size 60, color white, style bold
+```
 
 You can also provide structured parameters to override NLP extraction:
 
@@ -37,10 +167,68 @@ You can also provide structured parameters to override NLP extraction:
       "y": 0,
       "overlayColor": "#ffffff",
       "overlayAlpha": 0.8
+    },
+    "text": {
+      "content": "FUTURE CITY",
+      "position": "bottom",
+      "fontSize": 48,
+      "color": "white",
+      "style": "bold",
+      "backgroundColor": "rgba(0,0,0,0.5)"
     }
   }
 }
 ```
+
+### Text Overlay Examples
+
+Here are some examples of text overlay commands:
+
+1. **Simple Caption**:
+
+   ```
+   Generate a beach sunset --text "Summer Vibes"
+   ```
+
+2. **Positioned Text**:
+
+   ```
+   Generate a mountain landscape --text "ADVENTURE" --text-position top
+   ```
+
+3. **Styled Text**:
+
+   ```
+   Generate a cityscape --text "METROPOLIS" --text-position bottom --text-size 72 --text-color white --text-style bold
+   ```
+
+4. **Text with Background**:
+
+   ```
+   Generate a forest scene --text "NATURE" --text-position center --text-color white --text-background-color "rgba(0,0,0,0.7)"
+   ```
+
+5. **Multiple Text Elements** (using structured format):
+   ```json
+   {
+     "command": "Generate a beach scene",
+     "parameters": {
+       "text": {
+         "content": "PARADISE",
+         "position": "top",
+         "fontSize": 60,
+         "color": "white"
+       },
+       "secondaryText": {
+         "content": "Summer 2024",
+         "position": "bottom-right",
+         "fontSize": 24,
+         "color": "white",
+         "style": "italic"
+       }
+     }
+   }
+   ```
 
 ## Features
 
@@ -53,6 +241,11 @@ You can also provide structured parameters to override NLP extraction:
   - Scaling
   - Color filters
   - Opacity/transparency
+- 💬 Text Overlay System:
+  - Multiple font styles and families
+  - Positioning and alignment options
+  - Size, color, and style customization
+  - Background, stroke, and shadow effects
 - 💾 One-click download of combined images
 - 🔒 Rate limiting with Redis
 - 📊 Request metrics tracking
@@ -60,6 +253,9 @@ You can also provide structured parameters to override NLP extraction:
 - 🔄 Automatic retries for Redis operations
 - 📝 Comprehensive logging
 - 🌳 Web3 storage integration with Grove (for Lensify overlay)
+- 🪙 NFT minting on multiple chains:
+  - Mantle Sepolia for mantleify images
+  - Base Sepolia for higherify and baseify images
 
 ## Environment Setup
 
@@ -215,6 +411,153 @@ The application integrates with Grove, a secure, flexible, onchain-controlled st
 - **Persistent Storage**: Unlike in-memory storage, Grove provides more persistent storage for images.
 - **Web3 Integration**: Images stored on Grove can be referenced in Web3 applications.
 - **Access Control**: Grove supports various access control mechanisms for uploaded content.
+
+## Mantle NFT Integration
+
+The application includes NFT minting functionality on the Mantle Sepolia testnet, allowing users to mint their generated images as NFTs.
+
+### How It Works
+
+1. When a user generates an image with the "mantleify" overlay, they can mint it as an NFT directly from the UI.
+2. The minting process uses a smart contract deployed on the Mantle Sepolia testnet.
+3. The NFT metadata includes a reference to the Grove URL, ensuring the image is permanently stored.
+4. Users can view their minted NFTs in the gallery section of the admin page.
+
+### Smart Contract Details
+
+- **Contract Address**: `0x8b62d610c83c42ea8a8fc10f80581d9b7701cd37` (Mantle Sepolia Testnet)
+- **Contract Name**: MantleifyNFT
+- **Token Standard**: ERC-721
+- **Token Symbol**: MANTLE
+
+The contract includes the following key functions:
+
+```solidity
+// Mint a new NFT with the given Grove URL and metadata
+function mintNFT(
+    address to,
+    address creator,
+    string calldata groveUrl,
+    string calldata tokenURI
+) external returns (uint256)
+
+// Check if a Grove URL has already been minted
+function isGroveUrlMinted(string calldata groveUrl) public view returns (bool)
+
+// Get the token ID for a Grove URL
+function getTokenIdByGroveUrl(string calldata groveUrl) external view returns (uint256)
+```
+
+### Minting Process
+
+1. User generates an image with the "mantleify" overlay
+2. The image is stored on Grove for permanent storage
+3. User connects their wallet to the Mantle Sepolia network
+4. User clicks the "Mint as NFT" button
+5. The application prepares the transaction with:
+   - Recipient address (user's wallet)
+   - Creator address (user's wallet)
+   - Grove URL (for image reference)
+   - Token URI (metadata including the Grove URL)
+6. The transaction is sent to the Mantle Sepolia network
+7. Once confirmed, the NFT appears in the user's wallet and in the gallery
+
+### Viewing Minted NFTs
+
+Minted NFTs can be viewed in several ways:
+
+1. **Gallery View**: The admin page includes a gallery of all minted NFTs
+2. **Mantle Explorer**: Each NFT includes a link to view the transaction on Mantle Explorer
+3. **Wallet**: NFTs appear in the user's wallet if it supports ERC-721 tokens on Mantle Sepolia
+
+### Testing Mantle Integration
+
+To test the Mantle NFT integration:
+
+1. Connect your wallet to the Mantle Sepolia network
+2. Get some test MNT from the [Mantle Sepolia Faucet](https://faucet.sepolia.mantle.xyz/)
+3. Generate an image with the "mantleify" overlay
+4. Click the "Mint as NFT" button
+5. Confirm the transaction in your wallet
+6. View your NFT in the gallery or on Mantle Explorer
+
+## Base NFT Integration
+
+The application includes NFT minting functionality on the Base Sepolia testnet, allowing users to mint images created with the "higherify", "baseify", "higherise", and "dickbuttify" overlays as NFTs.
+
+### How It Works
+
+1. When a user generates an image with any of the supported overlays (higherify, baseify, higherise, or dickbuttify), they can mint it as an NFT directly from the UI.
+2. The minting process uses a smart contract deployed on the Base Sepolia testnet.
+3. The NFT metadata includes a reference to the Grove URL, ensuring the image is permanently stored.
+4. The contract distinguishes between different overlay types, allowing for collection-specific views.
+5. Users can view their minted NFTs in the gallery section of the admin page.
+
+### Smart Contract Details
+
+- **Contract Address**: `0x7bc9ff8519cf0ba2cc3ead8dc27ea3d9cb760e12` (Base Sepolia Testnet)
+- **Contract Name**: HigherBaseNFT
+- **Token Standard**: ERC-721
+- **Token Symbol**: MONFT
+
+The contract includes the following key functions:
+
+```solidity
+// Mint a new NFT with the given Grove URL and metadata
+function mintNFT(
+    address to,
+    address creator,
+    string calldata groveUrl,
+    string calldata tokenURI,
+    OverlayType overlayType
+) external returns (uint256)
+
+// Check if a Grove URL has already been minted
+function isGroveUrlMinted(string calldata groveUrl) public view returns (bool)
+
+// Get the token ID for a Grove URL
+function getTokenIdByGroveUrl(string calldata groveUrl) external view returns (uint256)
+
+// Get the overlay type for a token
+function getOverlayType(uint256 tokenId) external view returns (OverlayType)
+
+// Get all tokens of a specific overlay type
+function getTokensByOverlayType(OverlayType overlayType) external view returns (uint256[] memory)
+```
+
+### Minting Process
+
+1. User generates an image with one of the supported overlays (higherify, baseify, higherise, or dickbuttify)
+2. The image is stored on Grove for permanent storage
+3. User connects their wallet to the Base Sepolia network
+4. User clicks the "Mint as NFT" button
+5. The application prepares the transaction with:
+   - Recipient address (user's wallet)
+   - Creator address (user's wallet)
+   - Grove URL (for image reference)
+   - Token URI (metadata including the Grove URL)
+   - Overlay type (HIGHER=0, BASE=1, HIGHERISE=2, DICKBUTTIFY=3)
+6. The transaction is sent to the Base Sepolia network
+7. Once confirmed, the NFT appears in the user's wallet and in the gallery
+
+### Viewing Minted NFTs
+
+Minted NFTs can be viewed in several ways:
+
+1. **Gallery View**: The admin page includes a gallery of all minted NFTs, with filters for different overlay collections
+2. **Base Explorer**: Each NFT includes a link to view the transaction on Base Explorer
+3. **Wallet**: NFTs appear in the user's wallet if it supports ERC-721 tokens on Base Sepolia
+
+### Testing Base Integration
+
+To test the Base NFT integration:
+
+1. Connect your wallet to the Base Sepolia network
+2. Get some test ETH from the [Base Sepolia Faucet](https://www.coinbase.com/faucets/base-ethereum-goerli-faucet)
+3. Generate an image with one of the supported overlays (higherify, baseify, higherise, or dickbuttify)
+4. Click the "Mint as NFT" button
+5. Confirm the transaction in your wallet
+6. View your NFT in the gallery or on Base Explorer
 
 ## Farcaster Integration
 

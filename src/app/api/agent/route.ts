@@ -12,6 +12,10 @@ import {
 import { createCanvas, loadImage } from "canvas";
 import { storeImage } from "@/lib/image-store";
 import { uploadToGrove } from "@/lib/grove-storage";
+import {
+  addTextToImage,
+  ensureFontsAreRegistered,
+} from "@/lib/image-processor";
 
 // Mark the route as dynamic to prevent static optimization
 export const dynamic = "force-dynamic";
@@ -73,6 +77,9 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     incrementTotalRequests();
+
+    // Ensure fonts are registered before processing
+    await ensureFontsAreRegistered();
 
     // Get client IP for rate limiting
     const ip =
@@ -532,7 +539,8 @@ export async function POST(request: Request): Promise<Response> {
         }
 
         // Get result image buffer
-        const resultBuffer = canvas.toBuffer("image/png");
+        let resultBuffer: Buffer;
+        resultBuffer = canvas.toBuffer("image/png");
 
         // Create preview (smaller version)
         const previewSize = 300;
@@ -554,7 +562,148 @@ export async function POST(request: Request): Promise<Response> {
         );
 
         // Get preview buffer
-        const previewBuffer = previewCanvas.toBuffer("image/png");
+        let previewBuffer = previewCanvas.toBuffer("image/png");
+
+        // Add text to the image if specified
+        if (parsedCommand.text?.content) {
+          logger.info("Adding text to image", {
+            text: parsedCommand.text.content,
+            position: parsedCommand.text.position,
+            fontSize: parsedCommand.text.fontSize,
+            color: parsedCommand.text.color,
+            style: parsedCommand.text.style,
+          });
+
+          // Map text style to font family
+          let fontFamily = "Roboto, sans-serif";
+          let fontWeight = "normal";
+          const fontSize = parsedCommand.text.fontSize || 48;
+          const color = parsedCommand.text.color || "white";
+          const strokeColor: string | undefined = undefined;
+          const strokeWidth = 0;
+          const shadow:
+            | {
+                color: string;
+                offsetX: number;
+                offsetY: number;
+                blur: number;
+              }
+            | undefined = undefined;
+
+          // Position mapping
+          let x: number | "center" | "left" | "right" = "center";
+          let y: number | "center" | "top" | "bottom" = "bottom";
+
+          // Map position
+          if (parsedCommand.text.position) {
+            const pos = parsedCommand.text.position.toLowerCase();
+            if (
+              pos === "top" ||
+              pos === "bottom" ||
+              pos === "center" ||
+              pos === "left" ||
+              pos === "right" ||
+              pos === "top-left" ||
+              pos === "top-right" ||
+              pos === "bottom-left" ||
+              pos === "bottom-right"
+            ) {
+              // Handle compound positions
+              if (pos === "top-left") {
+                x = "left";
+                y = "top";
+              } else if (pos === "top-right") {
+                x = "right";
+                y = "top";
+              } else if (pos === "bottom-left") {
+                x = "left";
+                y = "bottom";
+              } else if (pos === "bottom-right") {
+                x = "right";
+                y = "bottom";
+              } else if (pos === "left" || pos === "right") {
+                x = pos;
+                y = "center";
+              } else {
+                y = pos as "top" | "bottom" | "center";
+              }
+            }
+          }
+
+          // Map text style to font
+          if (parsedCommand.text.style) {
+            const style = parsedCommand.text.style.toLowerCase();
+            switch (style) {
+              case "serif":
+                fontFamily = "serif";
+                break;
+              case "monospace":
+              case "mono":
+                fontFamily = "RobotoMono, monospace";
+                break;
+              case "handwriting":
+              case "script":
+                // Fallback to sans-serif if handwriting font not available
+                fontFamily = "Roboto, sans-serif";
+                fontWeight = "normal";
+                break;
+              case "thin":
+                fontWeight = "normal";
+                break;
+              case "bold":
+                fontWeight = "bold";
+                break;
+              default:
+                // Keep default Roboto sans-serif
+                break;
+            }
+          }
+
+          logger.info("Using font settings", {
+            fontFamily,
+            fontWeight,
+            fontSize,
+            textStyle: parsedCommand.text.style,
+          });
+
+          // Add text to the image
+          resultBuffer = await addTextToImage(
+            resultBuffer,
+            parsedCommand.text.content,
+            {
+              x,
+              y,
+              fontSize,
+              fontFamily,
+              fontWeight,
+              color,
+              strokeColor,
+              strokeWidth,
+              shadow,
+              backgroundColor: parsedCommand.text.backgroundColor,
+              padding: 10,
+              maxWidth: 800,
+              lineHeight: 1.2,
+              align: "center",
+            }
+          );
+
+          // Update the preview with text as well
+          previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+          const imageWithText = await loadImage(resultBuffer);
+          previewCtx.drawImage(
+            imageWithText,
+            0,
+            0,
+            imageWithText.width,
+            imageWithText.height,
+            0,
+            0,
+            previewCanvas.width,
+            previewCanvas.height
+          );
+          previewBuffer = previewCanvas.toBuffer("image/png");
+        }
 
         // Store the image in memory
         storeImage(resultId, resultBuffer, "image/png");

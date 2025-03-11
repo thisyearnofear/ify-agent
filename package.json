@@ -4,10 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "npm run download-fonts && next build",
     "start": "next start",
     "lint": "next lint",
-    "vercel-install": "npm install --legacy-peer-deps"
+    "vercel-install": "npm install --legacy-peer-deps",
+    "test-text-overlay": "chmod +x scripts/test-text-functionality.sh && ./scripts/test-text-functionality.sh",
+    "test-text-standalone": "chmod +x scripts/run-standalone-test.sh && ./scripts/run-standalone-test.sh",
+    "download-fonts": "node scripts/download-fonts.js"
   },
   "dependencies": {
     "@farcaster/frame-sdk": "^0.0.31",

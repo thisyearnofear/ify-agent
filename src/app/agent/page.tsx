@@ -7,6 +7,7 @@ import { Web3Provider } from "@/components/Web3Provider";
 import WalletConnect from "@/components/WalletConnect";
 import { useAccount } from "wagmi";
 import MintMantleifyButton from "@/components/MintMantleifyButton";
+import MintBaseNFTButton from "@/components/MintBaseNFTButton";
 
 // Loading indicator component
 const LoadingIndicator = () => (
@@ -32,6 +33,13 @@ interface ParsedCommand {
     y?: number;
     overlayColor?: string;
     overlayAlpha?: number;
+  };
+  text?: {
+    content: string;
+    position?: string;
+    fontSize?: number;
+    color?: string;
+    style?: string;
   };
 }
 
@@ -77,9 +85,29 @@ function AgentContent() {
     return url;
   };
 
+  // Function to get the best available image URL
+  const getBestImageUrl = (result: CommandResult): string => {
+    // Prefer Grove URL if available as it's more reliable
+    if (result.groveUrl) {
+      return result.groveUrl;
+    }
+    // Fall back to the result URL
+    return result.resultUrl || "";
+  };
+
   // Check if the command is using the mantleify overlay
   const isMantleifyCommand = (cmd: string): boolean => {
     return cmd.toLowerCase().includes("mantleify");
+  };
+
+  // Check if the command is using one of the Base NFT overlays
+  const getBaseOverlayType = (cmd: string): string | null => {
+    const lowerCmd = cmd.toLowerCase();
+    if (lowerCmd.includes("higherify")) return "higherify";
+    if (lowerCmd.includes("baseify")) return "baseify";
+    if (lowerCmd.includes("higherise")) return "higherise";
+    if (lowerCmd.includes("dickbuttify")) return "dickbuttify";
+    return null;
   };
 
   // Handle form submission
@@ -251,6 +279,15 @@ function AgentContent() {
                   <p className="text-center font-medium">
                     {parsedCommand.prompt || "No prompt provided"}
                   </p>
+                  {parsedCommand.overlayMode && (
+                    <p className="mt-2 text-center text-blue-600">
+                      Using{" "}
+                      <span className="font-medium">
+                        {parsedCommand.overlayMode}
+                      </span>{" "}
+                      overlay
+                    </p>
+                  )}
                 </div>
               )}
               {parsedCommand.action === "overlay" && (
@@ -301,6 +338,36 @@ function AgentContent() {
                   </ul>
                 </div>
               )}
+              {parsedCommand.text && (
+                <div className="mt-4 pt-4 border-t">
+                  <p className="mb-2 text-center">With text:</p>
+                  <p className="text-center font-medium">
+                    &ldquo;{parsedCommand.text.content}&rdquo;
+                  </p>
+                  <ul className="text-sm mt-2">
+                    {parsedCommand.text.position && (
+                      <li className="text-center">
+                        Position: {parsedCommand.text.position}
+                      </li>
+                    )}
+                    {parsedCommand.text.fontSize !== undefined && (
+                      <li className="text-center">
+                        Size: {parsedCommand.text.fontSize}
+                      </li>
+                    )}
+                    {parsedCommand.text.color && (
+                      <li className="text-center">
+                        Color: {parsedCommand.text.color}
+                      </li>
+                    )}
+                    {parsedCommand.text.style && (
+                      <li className="text-center">
+                        Style: {parsedCommand.text.style}
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
           <div className="flex justify-center gap-4">
@@ -327,7 +394,7 @@ function AgentContent() {
             <div className="flex flex-col items-center">
               <div className="relative w-full max-w-md mb-4">
                 <Image
-                  src={getProxiedUrl(result.resultUrl)}
+                  src={getProxiedUrl(getBestImageUrl(result))}
                   alt="Generated image"
                   width={512}
                   height={512}
@@ -335,7 +402,7 @@ function AgentContent() {
                 />
               </div>
               <a
-                href={result.resultUrl || "#"}
+                href={getBestImageUrl(result)}
                 download
                 className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 mb-4"
               >
@@ -362,6 +429,18 @@ function AgentContent() {
                     isConnected && (
                       <div className="mt-2">
                         <MintMantleifyButton groveUrl={result.groveUrl} />
+                      </div>
+                    )}
+
+                  {/* Add Mint as NFT button for Base NFT overlays */}
+                  {getBaseOverlayType(command) &&
+                    result.groveUrl &&
+                    isConnected && (
+                      <div className="mt-2">
+                        <MintBaseNFTButton
+                          groveUrl={result.groveUrl}
+                          overlayType={getBaseOverlayType(command)!}
+                        />
                       </div>
                     )}
                 </div>
