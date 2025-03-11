@@ -823,8 +823,9 @@ export default function FrameContent() {
               placeholder="Try 'baseify a futuristic city' or 'overlay: higherify scale 0.5'"
             ></textarea>
             <div className="text-xs text-gray-400 mt-1 text-center">
-              <span className="font-semibold">Tip:</span> Use "overlay:" to
-              apply to parent image, or include a description to generate new
+              <span className="font-semibold">Tip:</span> Use
+              &quot;overlay:&quot; to apply to parent image, or include a
+              description to generate new
             </div>
           </div>
 

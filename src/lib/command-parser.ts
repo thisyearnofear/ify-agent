@@ -145,7 +145,7 @@ const hasDescriptivePrompt = (
   overlayKeyword: string
 ): boolean => {
   // Remove the overlay keyword and control parameters
-  let cleanedInput = input
+  const cleanedInput = input
     .replace(new RegExp(overlayKeyword, "gi"), "")
     .replace(/scale\s+to\s+[\d\.]+/gi, "")
     .replace(/scale\s+[\d\.]+/gi, "")
@@ -358,7 +358,7 @@ export function parseCommand(input: string): ParsedCommand {
   }
 
   // Clean input from text flags before further processing
-  let cleanedInput = input;
+  let cleanedInput = input.toLowerCase().trim();
   for (const pattern of TEXT_PATTERNS.concat(
     TEXT_POSITION_PATTERNS,
     TEXT_SIZE_PATTERNS,
