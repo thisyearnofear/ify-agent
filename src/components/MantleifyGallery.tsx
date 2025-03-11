@@ -70,7 +70,7 @@ export default function MantleifyGallery() {
         const startId = Math.max(1, maxTokenId);
         const endId = Math.max(1, startId - 20); // Check up to 20 tokens backwards
 
-        for (let i = startId; i >= endId && items.length < 8; i--) {
+        for (let i = startId; i >= endId && items.length < 4; i--) {
           try {
             const tokenId = i.toString();
 

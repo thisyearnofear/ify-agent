@@ -631,59 +631,111 @@ export function parseCommand(input: string): ParsedCommand {
 
   // Check for implicit overlay mode detection
   if (!result.overlayMode) {
+    // Helper function to extract prompt from overlay command
+    const extractPromptFromOverlay = (overlayKeyword: string) => {
+      if (!result.prompt || result.prompt.trim() === "") {
+        // Remove the overlay keyword and any control parameters
+        let promptText = input
+          .replace(new RegExp(overlayKeyword, "gi"), "")
+          .replace(/scale\s+to\s+[\d\.]+/gi, "")
+          .replace(/scale\s+[\d\.]+/gi, "")
+          .replace(/position\s+at\s+[\d\.]+\s*,\s*[\d\.]+/gi, "")
+          .replace(/position\s+[\d\.]+\s*,\s*[\d\.]+/gi, "")
+          .replace(/opacity\s+to\s+[\d\.]+/gi, "")
+          .replace(/opacity\s+[\d\.]+/gi, "")
+          .replace(/color\s+to\s+\w+/gi, "")
+          .replace(/color\s+\w+/gi, "")
+          // Also remove text parameters
+          .replace(/--text\s+"[^"]+"/gi, "")
+          .replace(/--text\s+'[^']+'/gi, "")
+          .replace(/--text\s+[^,\.\s][^,\.]+/gi, "")
+          .replace(/--text-position\s+\w+/gi, "")
+          .replace(/--text-size\s+\d+/gi, "")
+          .replace(/--text-color\s+\w+/gi, "")
+          .replace(/--text-style\s+\w+/gi, "")
+          .replace(/--caption\s+"[^"]+"/gi, "")
+          .replace(/--caption\s+'[^']*'/gi, "")
+          .replace(/--caption\s+[^,\.\s][^,\.]+/gi, "")
+          .replace(/--caption-position\s+\w+/gi, "")
+          .replace(/--caption-size\s+\d+/gi, "")
+          .replace(/--caption-color\s+\w+/gi, "")
+          .replace(/--caption-style\s+\w+/gi, "")
+          .trim();
+
+        // Clean up punctuation
+        promptText = promptText.replace(/^\s*[a\.\,\:\;]+\s*/g, "").trim();
+
+        if (promptText) {
+          result.prompt = promptText;
+          logger.info(`Extracted prompt from overlay command: "${promptText}"`);
+        }
+      }
+    };
+
     // Check if the input contains any of the overlay mode keywords
     if (
       input.toLowerCase().includes("higherify") ||
       input.toLowerCase().includes("higher")
     ) {
       result.overlayMode = "higherify";
+      extractPromptFromOverlay("higherify|higher");
     } else if (
       input.toLowerCase().includes("degenify") ||
       input.toLowerCase().includes("degen")
     ) {
       result.overlayMode = "degenify";
+      extractPromptFromOverlay("degenify|degen");
     } else if (
       input.toLowerCase().includes("scrollify") ||
       input.toLowerCase().includes("scroll")
     ) {
       result.overlayMode = "scrollify";
+      extractPromptFromOverlay("scrollify|scroll");
     } else if (
       input.toLowerCase().includes("lensify") ||
       input.toLowerCase().includes("lens")
     ) {
       result.overlayMode = "lensify";
+      extractPromptFromOverlay("lensify|lens");
     } else if (input.toLowerCase().includes("higherise")) {
       result.overlayMode = "higherise";
+      extractPromptFromOverlay("higherise");
     } else if (
       input.toLowerCase().includes("dickbuttify") ||
       input.toLowerCase().includes("dickbutt")
     ) {
       result.overlayMode = "dickbuttify";
+      extractPromptFromOverlay("dickbuttify|dickbutt");
     } else if (
       input.toLowerCase().includes("nikefy") ||
       input.toLowerCase().includes("nike")
     ) {
       result.overlayMode = "nikefy";
+      extractPromptFromOverlay("nikefy|nike");
     } else if (
       input.toLowerCase().includes("nounify") ||
       input.toLowerCase().includes("noun")
     ) {
       result.overlayMode = "nounify";
+      extractPromptFromOverlay("nounify|noun");
     } else if (
       input.toLowerCase().includes("baseify") ||
       input.toLowerCase().includes("base")
     ) {
       result.overlayMode = "baseify";
+      extractPromptFromOverlay("baseify|base");
     } else if (
       input.toLowerCase().includes("clankerify") ||
       input.toLowerCase().includes("clanker")
     ) {
       result.overlayMode = "clankerify";
+      extractPromptFromOverlay("clankerify|clanker");
     } else if (
       input.toLowerCase().includes("mantleify") ||
       input.toLowerCase().includes("mantle")
     ) {
       result.overlayMode = "mantleify";
+      extractPromptFromOverlay("mantleify|mantle");
     }
   }
 

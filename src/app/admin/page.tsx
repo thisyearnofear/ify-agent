@@ -35,7 +35,7 @@ function AdminContent() {
             new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
           );
         })
-        .slice(0, 8); // Keep only the latest 8 images
+        .slice(0, 4); // Keep only the latest 4 images
 
       setImages(validImages);
       setError("");

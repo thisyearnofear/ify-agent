@@ -7,6 +7,7 @@ import { wagmiConfig } from "@/components/providers/WagmiConfig";
 import Image from "next/image";
 import { logger } from "@/lib/logger";
 import { encodeFunctionData, parseAbiItem } from "viem";
+import { baseSepolia } from "viem/chains";
 // These components are not directly used in this file
 // They are only needed in specific contexts when rendering conditionally
 // import MintMantleifyButton from "@/components/MintMantleifyButton";
@@ -80,7 +81,7 @@ export default function FrameContent() {
   const { disconnect } = useDisconnect();
 
   // Check if on Base Sepolia
-  const isOnBaseSepolia = chainId === 84532; // Base Sepolia chain ID
+  const isOnBaseSepolia = chainId === baseSepolia.id; // Base Sepolia chain ID
   // Check if on Mantle Sepolia
   const isOnMantleSepolia = chainId === 5003; // Mantle Sepolia chain ID
 
@@ -489,7 +490,7 @@ export default function FrameContent() {
       // Try to switch to Base Sepolia
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0x14a34" }], // 84532 in hex
+        params: [{ chainId: `0x${baseSepolia.id.toString(16)}` }], // Convert to hex
       });
     } catch (err: unknown) {
       const error = err as EthereumError;
@@ -500,7 +501,7 @@ export default function FrameContent() {
             method: "wallet_addEthereumChain",
             params: [
               {
-                chainId: "0x14a34", // 84532 in hex
+                chainId: `0x${baseSepolia.id.toString(16)}`, // Convert to hex
                 chainName: "Base Sepolia",
                 nativeCurrency: {
                   name: "ETH",

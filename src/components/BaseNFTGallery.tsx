@@ -242,9 +242,9 @@ export default function BaseNFTGallery() {
       ? nfts.filter((nft) => nft.overlayType === activeFilter)
       : nfts;
 
-  // Limit to 4 NFTs per type when no filter is active
+  // Limit to 4 NFTs when no filter is active (instead of 16)
   const displayNfts =
-    activeFilter !== null ? filteredNfts : filteredNfts.slice(0, 16);
+    activeFilter !== null ? filteredNfts : filteredNfts.slice(0, 4);
 
   if (loading) {
     return (
