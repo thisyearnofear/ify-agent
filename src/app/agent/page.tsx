@@ -477,33 +477,28 @@ function AgentContent() {
         </div>
         <div className="mt-4 p-3 bg-blue-50 rounded border border-blue-200 text-blue-800 text-sm max-w-md mx-auto">
           <strong>Supported overlays:</strong>{" "}
-          <span className="font-mono">degenify</span>,{" "}
-          <span className="font-mono">higherify</span>,{" "}
-          <span className="font-mono">scrollify</span>,{" "}
-          <span className="font-mono">lensify</span>,{" "}
-          <span className="font-mono">higherise</span>,{" "}
-          <span className="font-mono">dickbuttify</span>,{" "}
+          <span className="font-mono">degen</span>,{" "}
+          <span className="font-mono">higher</span>,{" "}
+          <span className="font-mono">scroll</span>,{" "}
+          <span className="font-mono">lens</span>,{" "}
+          <span className="font-mono">dickbutt</span>,{" "}
           <span className="font-mono">nikefy</span>,{" "}
-          <span className="font-mono">nounify</span>,{" "}
-          <span className="font-mono">baseify</span>,{" "}
-          <span className="font-mono">clankerify</span>,{" "}
-          <span className="font-mono">mantleify</span>
+          <span className="font-mono">noun</span>,{" "}
+          <span className="font-mono">base</span>,{" "}
+          <span className="font-mono">mantle</span>
         </div>
         <div className="mt-3 p-3 bg-yellow-50 rounded border border-yellow-200 text-yellow-800 text-sm max-w-md mx-auto">
           <strong>Tip:</strong> Separate commands with periods for better
           results:
           <br />
           <span className="font-mono text-xs mt-1 block">
-            Higherify a cat wearing sunglasses. Opacity to 0.3. Color to green.
+            Higherify a dog. Opacity 0.3. Color green.
           </span>
         </div>
         <div className="mt-3 p-3 bg-green-50 rounded border border-green-200 text-green-800 text-sm max-w-md mx-auto">
-          <strong>New!</strong> Use <span className="font-mono">mantleify</span>{" "}
-          to create images that can be minted as NFTs on Mantle Sepolia.
+          <strong>New!</strong> <span className="font-mono">mantle & base</span>
+          images mintable as testnet NFTs.
           <br />
-          <span className="font-mono text-xs mt-1 block">
-            Mantleify a blockchain visualization. Scale to 0.5.
-          </span>
         </div>
       </div>
     </div>
