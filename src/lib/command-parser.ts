@@ -180,8 +180,10 @@ function cleanPrompt(text: string): string {
  * Parse a natural language command into structured parameters
  */
 export function parseCommand(input: string): ParsedCommand {
+  // Initialize the result with default values
   const result: ParsedCommand = {
     action: "generate",
+    prompt: "",
   };
 
   // Extract text content and parameters
@@ -242,10 +244,15 @@ export function parseCommand(input: string): ParsedCommand {
   }
 
   // If we found any text parameters, add them to the result
-  if (textContent) {
-    result.text = {
-      content: textContent,
-    };
+  if (textContent || textPosition || textSize || textColor || textStyle) {
+    // Create the text object if it doesn't exist
+    if (!result.text) {
+      result.text = {
+        content: textContent || "Text", // Default text if none provided
+      };
+    } else {
+      result.text.content = textContent || result.text.content || "Text";
+    }
 
     if (textPosition) result.text.position = textPosition;
     if (textSize) result.text.fontSize = textSize;
@@ -253,12 +260,58 @@ export function parseCommand(input: string): ParsedCommand {
     if (textStyle) result.text.style = textStyle;
 
     logger.info("Text parameters extracted", {
-      content: textContent,
+      content: result.text.content,
       position: textPosition,
       fontSize: textSize,
       color: textColor,
       style: textStyle,
     });
+
+    // Check if this is a text-only command (no overlay mode specified)
+    const hasOverlayMode =
+      input.toLowerCase().includes("degenify") ||
+      input.toLowerCase().includes("higherify") ||
+      input.toLowerCase().includes("scrollify") ||
+      input.toLowerCase().includes("lensify") ||
+      input.toLowerCase().includes("higherise") ||
+      input.toLowerCase().includes("dickbuttify") ||
+      input.toLowerCase().includes("nikefy") ||
+      input.toLowerCase().includes("nounify") ||
+      input.toLowerCase().includes("baseify") ||
+      input.toLowerCase().includes("clankerify") ||
+      input.toLowerCase().includes("mantleify");
+
+    // If no overlay mode is specified and we have text parameters,
+    // this is likely a text-only command
+    if (!hasOverlayMode) {
+      // Check if this is just text parameters with no other content
+      const cleanedInput = input
+        .replace(/--text\s+"[^"]+"/gi, "")
+        .replace(/--text\s+'[^']+'/gi, "")
+        .replace(/--text\s+[^,\.\s][^,\.]+/gi, "")
+        .replace(/--text-position\s+\w+/gi, "")
+        .replace(/--text-size\s+\d+/gi, "")
+        .replace(/--text-color\s+\w+/gi, "")
+        .replace(/--text-style\s+\w+/gi, "")
+        .replace(/--caption\s+"[^"]+"/gi, "")
+        .replace(/--caption\s+'[^']*'/gi, "")
+        .replace(/--caption\s+[^,\.\s][^,\.]+/gi, "")
+        .replace(/--caption-position\s+\w+/gi, "")
+        .replace(/--caption-size\s+\d+/gi, "")
+        .replace(/--caption-color\s+\w+/gi, "")
+        .replace(/--caption-style\s+\w+/gi, "")
+        .trim();
+
+      // If the cleaned input is empty or very short, this is a text-only command
+      if (cleanedInput.length < 10) {
+        result.action = "overlay";
+        result.useParentImage = true;
+        logger.info("Detected text-only command, will apply to parent image", {
+          textContent: result.text.content,
+          useParentImage: true,
+        });
+      }
+    }
   }
 
   // Clean input from text flags before further processing
@@ -286,8 +339,7 @@ export function parseCommand(input: string): ParsedCommand {
 
   // Check even more alternative formats
   if (!promptSection && !overlaySection && !textSection) {
-    promptSection = cleanedInput; // Default to entire input as prompt
-    overlaySection = cleanedInput.match(WOWOW_PATTERN)?.[1]?.trim();
+    promptSection = cleanedInput.match(WOWOW_PATTERN)?.[1]?.trim();
     textSection = cleanedInput.match(CAPTION_PATTERN)?.[1]?.trim();
   }
 

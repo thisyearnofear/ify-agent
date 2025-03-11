@@ -79,7 +79,38 @@ const isImageGenerationCommand = (command: string): boolean => {
     lowerCommand.includes("--text-position") ||
     lowerCommand.includes("--text-size") ||
     lowerCommand.includes("--text-color") ||
-    lowerCommand.includes("--text-style");
+    lowerCommand.includes("--text-style") ||
+    lowerCommand.includes("--caption-position") ||
+    lowerCommand.includes("--caption-size") ||
+    lowerCommand.includes("--caption-color") ||
+    lowerCommand.includes("--caption-style");
+
+  // If it's just a text command with no other content, it's likely a text-only overlay
+  if (hasTextCommand) {
+    // Check if the command is mostly just text parameters
+    const cleanedCommand = command
+      .replace(/--text\s+"[^"]+"/gi, "")
+      .replace(/--text\s+'[^']+'/gi, "")
+      .replace(/--text\s+[^,\.\s][^,\.]+/gi, "")
+      .replace(/--text-position\s+\w+/gi, "")
+      .replace(/--text-size\s+\d+/gi, "")
+      .replace(/--text-color\s+\w+/gi, "")
+      .replace(/--text-style\s+\w+/gi, "")
+      .replace(/--caption\s+"[^"]+"/gi, "")
+      .replace(/--caption\s+'[^']*'/gi, "")
+      .replace(/--caption\s+[^,\.\s][^,\.]+/gi, "")
+      .replace(/--caption-position\s+\w+/gi, "")
+      .replace(/--caption-size\s+\d+/gi, "")
+      .replace(/--caption-color\s+\w+/gi, "")
+      .replace(/--caption-style\s+\w+/gi, "")
+      .trim();
+
+    // If there's not much left after removing text parameters, it's a text-only command
+    if (cleanedCommand.length < 10) {
+      logger.info("Detected text-only command", { command, cleanedCommand });
+      return true;
+    }
+  }
 
   return (
     hasOverlayKeyword ||
@@ -371,6 +402,24 @@ export async function POST(request: Request) {
     // Parse the command using our existing parser
     const parsedCommand = parseCommand(commandText);
 
+    // Check if this is a text-only command (has text parameters but no overlay mode)
+    const isTextOnlyCommand =
+      parsedCommand.text &&
+      !parsedCommand.overlayMode &&
+      !commandText.toLowerCase().includes("generate") &&
+      !commandText.toLowerCase().includes("create");
+
+    // If it's a text-only command, ensure we use the parent image
+    if (isTextOnlyCommand) {
+      parsedCommand.action = "overlay";
+      parsedCommand.useParentImage = true;
+      logger.info("Detected text-only command in webhook handler", {
+        textContent: parsedCommand.text?.content,
+        textPosition: parsedCommand.text?.position,
+        useParentImage: true,
+      });
+    }
+
     // Check if we need to use the parent cast's image
     let parentImageUrl: string | undefined;
     const currentCastImageUrl = extractImageUrlFromCast(castData);
@@ -419,14 +468,20 @@ export async function POST(request: Request) {
 
         // If we couldn't find an image in the parent cast and there's no image in the current cast
         if (!parentImageUrl && !currentCastImageUrl) {
-          await replyToCast(
-            castData.hash,
-            "I couldn't find an image in the parent cast to apply the overlay to. Please make sure the cast you're replying to contains an image."
-          );
-          return NextResponse.json({
-            status: "error",
-            reason: "No image found in parent cast",
-          });
+          // Only show an error if this is not a text-only command or if it is a text-only command but we need a parent image
+          if (
+            !isTextOnlyCommand ||
+            (isTextOnlyCommand && parsedCommand.useParentImage)
+          ) {
+            await replyToCast(
+              castData.hash,
+              "I couldn't find an image in the parent cast to apply the overlay to. Please make sure the cast you're replying to contains an image."
+            );
+            return NextResponse.json({
+              status: "error",
+              reason: "No image found in parent cast",
+            });
+          }
         }
       } catch (error) {
         logger.error("Error getting parent image URL", {
