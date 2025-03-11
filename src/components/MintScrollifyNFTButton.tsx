@@ -4,15 +4,31 @@ import { useState, useCallback, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { encodeFunctionData, parseAbiItem } from "viem";
 
-// Deployed contract address on Mantle Sepolia
-const CONTRACT_ADDRESS = "0x8b62d610c83c42ea8a8fc10f80581d9b7701cd37";
+// Deployed contract address on Scroll Sepolia
+const CONTRACT_ADDRESS = "0x653d41fba630381aa44d8598a4b35ce257924d65";
 
 // Contract ABI fragment for the mint function
 const MINT_FUNCTION = parseAbiItem(
-  "function mintNFT(address to, address creator, string groveUrl, string tokenURI) returns (uint256)"
+  "function mintNFT(address to, address creator, string calldata groveUrl, string calldata tokenURI) returns (uint256)"
 );
 
-interface MintMantleifyButtonProps {
+// Alternative ABI with explicit types for fallback
+const ALTERNATIVE_ABI = [
+  {
+    name: "mintNFT",
+    type: "function",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "creator", type: "address" },
+      { name: "groveUrl", type: "string" },
+      { name: "tokenURI", type: "string" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "nonpayable",
+  },
+];
+
+interface MintScrollifyNFTButtonProps {
   groveUrl: string;
 }
 
@@ -22,12 +38,12 @@ type EthereumError = {
   message: string;
 };
 
-// Mantle Sepolia chain ID
-const MANTLE_SEPOLIA_CHAIN_ID = 5003;
+// Scroll Sepolia chain ID
+const SCROLL_SEPOLIA_CHAIN_ID = 534351;
 
-export default function MintMantleifyButton({
+export default function MintScrollifyNFTButton({
   groveUrl,
-}: MintMantleifyButtonProps) {
+}: MintScrollifyNFTButtonProps) {
   const { address, isConnected } = useAccount();
   const [chainId, setChainId] = useState<number | null>(null);
   const [isSwitchingNetwork, setIsSwitchingNetwork] = useState(false);
@@ -38,7 +54,7 @@ export default function MintMantleifyButton({
   const [userRejected, setUserRejected] = useState(false);
 
   // Check if user is on the correct network
-  const isCorrectNetwork = chainId === MANTLE_SEPOLIA_CHAIN_ID;
+  const isCorrectNetwork = chainId === SCROLL_SEPOLIA_CHAIN_ID;
 
   // Check current network on mount and when connection changes
   useEffect(() => {
@@ -88,10 +104,10 @@ export default function MintMantleifyButton({
     setIsSwitchingNetwork(true);
 
     try {
-      // Try to switch to Mantle Sepolia
+      // Try to switch to Scroll Sepolia
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0x1393" }], // 5003 in hex
+        params: [{ chainId: "0x8274f" }], // 534351 in hex
       });
     } catch (err: unknown) {
       const error = err as EthereumError;
@@ -104,21 +120,21 @@ export default function MintMantleifyButton({
             method: "wallet_addEthereumChain",
             params: [
               {
-                chainId: "0x1393", // 5003 in hex
-                chainName: "Mantle Sepolia",
+                chainId: "0x8274f", // 534351 in hex
+                chainName: "Scroll Sepolia",
                 nativeCurrency: {
-                  name: "MNT",
-                  symbol: "MNT",
+                  name: "ETH",
+                  symbol: "ETH",
                   decimals: 18,
                 },
-                rpcUrls: ["https://rpc.sepolia.mantle.xyz"],
-                blockExplorerUrls: ["https://sepolia.mantlescan.xyz"],
+                rpcUrls: ["https://sepolia-rpc.scroll.io"],
+                blockExplorerUrls: ["https://sepolia.scrollscan.com"],
               },
             ],
           });
         } catch (addError) {
           setError(
-            "Failed to add Mantle Sepolia network. Please add it manually."
+            "Failed to add Scroll Sepolia network. Please add it manually."
           );
           console.error("Error adding network:", addError);
         }
@@ -136,7 +152,7 @@ export default function MintMantleifyButton({
     }
 
     if (!isCorrectNetwork) {
-      setError("Please switch to Mantle Sepolia network");
+      setError("Please switch to Scroll Sepolia network");
       return;
     }
 
@@ -146,7 +162,7 @@ export default function MintMantleifyButton({
 
     try {
       // Create a metadata URI that includes the Grove URL for better identification
-      const metadataUri = `ipfs://mantleify/${encodeURIComponent(groveUrl)}`;
+      const metadataUri = `ipfs://scrollify/${encodeURIComponent(groveUrl)}`;
 
       if (!window.ethereum) {
         throw new Error("No Ethereum provider found. Please install a wallet.");
@@ -158,29 +174,57 @@ export default function MintMantleifyButton({
 
       const walletAddress = accounts[0];
 
-      // Encode the function call
-      const data = encodeFunctionData({
-        abi: [MINT_FUNCTION],
-        args: [walletAddress, walletAddress, groveUrl, metadataUri],
-      });
+      try {
+        // Try with the primary ABI first
+        const data = encodeFunctionData({
+          abi: [MINT_FUNCTION],
+          args: [walletAddress, walletAddress, groveUrl, metadataUri],
+        });
 
-      // Prepare transaction
-      const txParams = {
-        from: walletAddress,
-        to: CONTRACT_ADDRESS,
-        data,
-        value: "0x0",
-      };
+        // Prepare transaction
+        const txParams = {
+          from: walletAddress,
+          to: CONTRACT_ADDRESS,
+          data,
+          value: "0x0",
+        };
 
-      // Send transaction
-      const hash = await window.ethereum.request({
-        method: "eth_sendTransaction",
-        params: [txParams],
-      });
+        // Send transaction
+        const hash = await window.ethereum.request({
+          method: "eth_sendTransaction",
+          params: [txParams],
+        });
 
-      setTxHash(hash);
-      setIsMinting(false);
-      setIsConfirming(true);
+        setTxHash(hash);
+        setIsMinting(false);
+        setIsConfirming(true);
+      } catch (encodeError) {
+        console.error("Error encoding function data:", encodeError);
+
+        // Fallback to alternative ABI
+        const data = encodeFunctionData({
+          abi: ALTERNATIVE_ABI,
+          args: [walletAddress, walletAddress, groveUrl, metadataUri],
+        });
+
+        // Prepare transaction
+        const txParams = {
+          from: walletAddress,
+          to: CONTRACT_ADDRESS,
+          data,
+          value: "0x0",
+        };
+
+        // Send transaction
+        const hash = await window.ethereum.request({
+          method: "eth_sendTransaction",
+          params: [txParams],
+        });
+
+        setTxHash(hash);
+        setIsMinting(false);
+        setIsConfirming(true);
+      }
     } catch (err: unknown) {
       setIsMinting(false);
       const error = err as EthereumError;
@@ -201,59 +245,66 @@ export default function MintMantleifyButton({
   }, [isConnected, address, groveUrl, isCorrectNetwork]);
 
   // Button text based on state
-  let buttonText = "Mint Mantleify NFT";
+  let buttonText = "Mint on Scroll Sepolia";
   if (!isConnected) {
     buttonText = "Connect Wallet to Mint";
   } else if (!isCorrectNetwork) {
-    buttonText = "Switch to Mantle Sepolia";
+    buttonText = "Switch to Scroll Sepolia";
   } else if (isMinting) {
     buttonText = "Minting...";
   } else if (isConfirming) {
-    buttonText = "Transaction Sent!";
-  } else if (userRejected) {
-    buttonText = "Try Again";
+    buttonText = "Transaction Confirming...";
+  }
+
+  // If transaction is confirmed, show success message
+  if (txHash) {
+    return (
+      <div className="flex flex-col items-center gap-2">
+        <p className="text-green-600 font-semibold">NFT minted successfully!</p>
+        <a
+          href={`https://sepolia.scrollscan.com/tx/${txHash}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-500 hover:underline text-sm"
+        >
+          View transaction on Scrollscan
+        </a>
+      </div>
+    );
   }
 
   return (
-    <div>
-      {!isCorrectNetwork && isConnected ? (
-        <button
-          onClick={handleSwitchNetwork}
-          disabled={isSwitchingNetwork}
-          className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:bg-yellow-400 w-full"
-        >
-          {isSwitchingNetwork ? "Switching..." : "Switch to Mantle Sepolia"}
-        </button>
-      ) : (
-        <button
-          onClick={handleMint}
-          disabled={isMinting || isConfirming || !isConnected}
-          className={`px-4 py-2 rounded w-full ${
-            isConfirming
-              ? "bg-green-600 hover:bg-green-700 text-white"
-              : "bg-blue-600 hover:bg-blue-700 text-white"
-          } disabled:bg-gray-400`}
-        >
-          {buttonText}
-        </button>
-      )}
-
-      {txHash && (
-        <div className="mt-2 text-center">
-          <a
-            href={`https://sepolia.mantlescan.xyz/tx/${txHash}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-500 hover:text-blue-700 text-sm"
-          >
-            View on Explorer
-          </a>
-        </div>
-      )}
-
+    <div className="flex flex-col items-center gap-2">
       {error && (
-        <div className="mt-2 text-red-500 text-sm text-center">{error}</div>
+        <p className="text-red-500 text-sm mb-2">
+          {error}
+          {userRejected && (
+            <button
+              className="text-blue-500 hover:underline ml-2"
+              onClick={() => {
+                setError(null);
+                setUserRejected(false);
+              }}
+            >
+              Try again
+            </button>
+          )}
+        </p>
       )}
+
+      <button
+        className={`w-full py-2 px-4 rounded-md text-white ${
+          !isConnected || isMinting || isConfirming
+            ? "bg-gray-400 cursor-not-allowed"
+            : !isCorrectNetwork
+            ? "bg-yellow-600 hover:bg-yellow-700"
+            : "bg-purple-600 hover:bg-purple-700"
+        }`}
+        onClick={!isCorrectNetwork ? handleSwitchNetwork : handleMint}
+        disabled={isMinting || isConfirming}
+      >
+        {buttonText}
+      </button>
     </div>
   );
 }

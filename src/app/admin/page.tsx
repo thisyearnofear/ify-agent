@@ -6,8 +6,8 @@ import Image from "next/image";
 import { Web3Provider } from "@/components/Web3Provider";
 import WalletConnect from "@/components/WalletConnect";
 import { ImageRecord } from "@/lib/metrics";
-import MantleifyGallery from "@/components/MantleifyGallery";
 import BaseNFTGallery from "@/components/BaseNFTGallery";
+import L2NFTGallery from "@/components/L2NFTGallery";
 
 function AdminContent() {
   const [images, setImages] = useState<ImageRecord[]>([]);
@@ -149,11 +149,8 @@ function AdminContent() {
         <BaseNFTGallery />
       </div>
 
-      {/* Mantleify NFT Gallery */}
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-center mb-4">Mantle NFTs</h2>
-        <MantleifyGallery />
-      </div>
+      {/* L2 NFT Gallery (Mantle and Scroll) */}
+      <L2NFTGallery />
 
       {/* Refresh button at the bottom */}
       <div className="flex justify-center mt-6 mb-8">

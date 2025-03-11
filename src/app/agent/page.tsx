@@ -8,6 +8,7 @@ import WalletConnect from "@/components/WalletConnect";
 import { useAccount } from "wagmi";
 import MintMantleifyButton from "@/components/MintMantleifyButton";
 import MintBaseNFTButton from "@/components/MintBaseNFTButton";
+import MintScrollifyNFTButton from "@/components/MintScrollifyNFTButton";
 
 // Loading indicator component
 const LoadingIndicator = () => (
@@ -95,9 +96,14 @@ function AgentContent() {
     return result.resultUrl || "";
   };
 
-  // Check if the command is using the mantleify overlay
+  // Check if the command is a mantleify command
   const isMantleifyCommand = (cmd: string): boolean => {
     return cmd.toLowerCase().includes("mantleify");
+  };
+
+  // Check if the command is a scrollify command
+  const isScrollifyCommand = (cmd: string): boolean => {
+    return cmd.toLowerCase().includes("scrollify");
   };
 
   // Check if the command is using one of the Base NFT overlays
@@ -441,6 +447,15 @@ function AgentContent() {
                           groveUrl={result.groveUrl}
                           overlayType={getBaseOverlayType(command)!}
                         />
+                      </div>
+                    )}
+
+                  {/* Add Mint as NFT button for scrollify images */}
+                  {isScrollifyCommand(command) &&
+                    result.groveUrl &&
+                    isConnected && (
+                      <div className="mt-2">
+                        <MintScrollifyNFTButton groveUrl={result.groveUrl} />
                       </div>
                     )}
                 </div>

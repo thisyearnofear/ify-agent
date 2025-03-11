@@ -74,6 +74,42 @@ const mantleSepolia = {
   },
 };
 
+// Custom chain for Scroll Sepolia
+const scrollSepolia = {
+  id: 534351,
+  name: "Scroll Sepolia",
+  network: "scroll-sepolia",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Scroll Sepolia Ether",
+    symbol: "ETH",
+  },
+  rpcUrls: {
+    default: {
+      http: [
+        `https://scroll-sepolia.g.alchemy.com/v2/${
+          process.env.NEXT_PUBLIC_ALCHEMY_ID ||
+          "Tx9luktS3qyIwEKVtjnQrpq8t3MNEV-B"
+        }`,
+      ],
+    },
+    public: {
+      http: [
+        `https://scroll-sepolia.g.alchemy.com/v2/${
+          process.env.NEXT_PUBLIC_ALCHEMY_ID ||
+          "Tx9luktS3qyIwEKVtjnQrpq8t3MNEV-B"
+        }`,
+      ],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: "Scroll Sepolia Explorer",
+      url: "https://sepolia.scrollscan.com",
+    },
+  },
+};
+
 // Create a Wagmi config with ConnectKit's default configuration
 const config = createConfig(
   getDefaultConfig({
@@ -89,6 +125,7 @@ const config = createConfig(
       lensSepolia,
       mantleSepolia,
       baseSepolia,
+      scrollSepolia,
     ],
     transports: {
       // RPC URLs for each chain
@@ -127,6 +164,12 @@ const config = createConfig(
       [mantleSepolia.id]: http("https://rpc.sepolia.mantle.xyz"),
       [baseSepolia.id]: http(
         `https://base-sepolia.g.alchemy.com/v2/${
+          process.env.NEXT_PUBLIC_ALCHEMY_ID ||
+          "Tx9luktS3qyIwEKVtjnQrpq8t3MNEV-B"
+        }`
+      ),
+      [scrollSepolia.id]: http(
+        `https://scroll-sepolia.g.alchemy.com/v2/${
           process.env.NEXT_PUBLIC_ALCHEMY_ID ||
           "Tx9luktS3qyIwEKVtjnQrpq8t3MNEV-B"
         }`

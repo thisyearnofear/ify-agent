@@ -717,6 +717,75 @@ The frame is built using:
 
 The frame implementation follows the Farcaster Frames v2 specification, providing a rich interactive experience within Farcaster clients.
 
+## Scroll NFT Integration
+
+The application includes NFT minting functionality on the Scroll Sepolia testnet, allowing users to mint images created with the "scrollify" overlay as NFTs.
+
+### How It Works
+
+1. When a user generates an image with the "scrollify" overlay, they can mint it as an NFT directly from the UI.
+2. The minting process uses a smart contract deployed on the Scroll Sepolia testnet.
+3. The NFT metadata includes a reference to the Grove URL, ensuring the image is permanently stored.
+4. Users can view their minted NFTs in the gallery section of the admin page.
+
+### Smart Contract Details
+
+- **Contract Address**: `0x653d41fba630381aa44d8598a4b35ce257924d65` (Scroll Sepolia Testnet)
+- **Contract Name**: ScrollifyNFT
+- **Token Standard**: ERC-721
+- **Token Symbol**: SCROLL
+
+The contract includes the following key functions:
+
+```solidity
+// Mint a new NFT with the given Grove URL and metadata
+function mintNFT(
+    address to,
+    address creator,
+    string calldata groveUrl,
+    string calldata tokenURI
+) external returns (uint256)
+
+// Check if a Grove URL has already been minted
+function isGroveUrlMinted(string calldata groveUrl) public view returns (bool)
+
+// Get the token ID for a Grove URL
+function getTokenIdByGroveUrl(string calldata groveUrl) external view returns (uint256)
+```
+
+### Minting Process
+
+1. User generates an image with the "scrollify" overlay
+2. The image is stored on Grove for permanent storage
+3. User connects their wallet to the Scroll Sepolia network
+4. User clicks the "Mint Scrollify NFT" button
+5. The application prepares the transaction with:
+   - Recipient address (user's wallet)
+   - Creator address (user's wallet)
+   - Grove URL (for image reference)
+   - Token URI (metadata including the Grove URL)
+6. The transaction is sent to the Scroll Sepolia network
+7. Once confirmed, the NFT appears in the user's wallet and in the gallery
+
+### Viewing Minted NFTs
+
+Minted NFTs can be viewed in several ways:
+
+1. **Gallery View**: The admin page includes a gallery of all minted Scrollify NFTs
+2. **Scroll Explorer**: Each NFT includes a link to view the transaction on Scroll Explorer
+3. **Wallet**: NFTs appear in the user's wallet if it supports ERC-721 tokens on Scroll Sepolia
+
+### Testing Scroll Integration
+
+To test the Scroll NFT integration:
+
+1. Connect your wallet to the Scroll Sepolia network
+2. Get some test ETH from the [Scroll Sepolia Faucet](https://sepolia-faucet.scroll.io/)
+3. Generate an image with the "scrollify" overlay
+4. Click the "Mint Scrollify NFT" button
+5. Confirm the transaction in your wallet
+6. View your NFT in the gallery or on Scroll Explorer
+
 ## Technologies Used
 
 - [Next.js 15](https://nextjs.org/)
