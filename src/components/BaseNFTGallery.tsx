@@ -89,6 +89,10 @@ export default function BaseNFTGallery() {
 
               // Get the latest 4 tokens of this type
               const latestTokens = tokensOfType.slice(-4);
+              console.log(
+                `Latest tokens of type ${getOverlayTypeName(typeId)}:`,
+                latestTokens
+              );
 
               for (const tokenId of latestTokens) {
                 try {
@@ -101,6 +105,11 @@ export default function BaseNFTGallery() {
 
                   // Get the overlay type
                   const overlayType = await contract.overlayTypes(tokenId);
+                  console.log(
+                    `Token ${tokenId} overlay type:`,
+                    overlayType,
+                    getOverlayTypeName(Number(overlayType))
+                  );
 
                   // Extract the Grove URL from the tokenURI if possible
                   let groveUrl = "";
@@ -110,14 +119,20 @@ export default function BaseNFTGallery() {
                     const overlayName = getOverlayTypeName(
                       Number(overlayType)
                     ).toLowerCase();
-                    if (tokenURI.startsWith(`ipfs://${overlayName}/`)) {
+                    console.log(`Token ${tokenId} overlay name:`, overlayName);
+
+                    // Try to extract the prefix from the tokenURI
+                    const match = tokenURI.match(/^ipfs:\/\/([^\/]+)\//);
+                    if (match && match[1]) {
+                      const prefix = match[1];
+                      console.log(`Token ${tokenId} has prefix:`, prefix);
+
                       try {
-                        // Format: ipfs://overlayName/encodedGroveUrl
                         groveUrl = decodeURIComponent(
-                          tokenURI.replace(`ipfs://${overlayName}/`, "")
+                          tokenURI.replace(`ipfs://${prefix}/`, "")
                         );
                         console.log(
-                          `Extracted Grove URL for token ${tokenId}:`,
+                          `Extracted Grove URL for token ${tokenId} from ${prefix} format:`,
                           groveUrl
                         );
                       } catch (decodeError) {
@@ -126,6 +141,11 @@ export default function BaseNFTGallery() {
                           decodeError
                         );
                       }
+                    } else {
+                      console.warn(
+                        `Token ${tokenId} has unrecognized tokenURI format:`,
+                        tokenURI
+                      );
                     }
                   }
 
@@ -187,6 +207,8 @@ export default function BaseNFTGallery() {
                 const overlayName = getOverlayTypeName(
                   Number(overlayType)
                 ).toLowerCase();
+
+                // Check for standard format with overlay name
                 if (tokenURI.startsWith(`ipfs://${overlayName}/`)) {
                   try {
                     // Format: ipfs://overlayName/encodedGroveUrl
@@ -198,6 +220,62 @@ export default function BaseNFTGallery() {
                       `Could not decode URI for token ${tokenId}:`,
                       decodeError
                     );
+                  }
+                }
+                // Check for alternative format with "ify" suffix
+                else if (
+                  overlayName === "base" &&
+                  tokenURI.startsWith("ipfs://baseify/")
+                ) {
+                  try {
+                    groveUrl = decodeURIComponent(
+                      tokenURI.replace("ipfs://baseify/", "")
+                    );
+                  } catch (decodeError) {
+                    console.warn(
+                      `Could not decode URI for token ${tokenId}:`,
+                      decodeError
+                    );
+                  }
+                }
+                // Check for alternative format with "ify" suffix for higher
+                else if (
+                  overlayName === "higher" &&
+                  tokenURI.startsWith("ipfs://higherify/")
+                ) {
+                  try {
+                    groveUrl = decodeURIComponent(
+                      tokenURI.replace("ipfs://higherify/", "")
+                    );
+                  } catch (decodeError) {
+                    console.warn(
+                      `Could not decode URI for token ${tokenId}:`,
+                      decodeError
+                    );
+                  }
+                }
+                // Check if the tokenURI might be using "baseify" when the overlay type is "base"
+                else if (tokenURI.startsWith("ipfs://")) {
+                  // Try to extract the prefix from the tokenURI
+                  const match = tokenURI.match(/^ipfs:\/\/([^\/]+)\//);
+                  if (match && match[1]) {
+                    const prefix = match[1];
+                    console.log(`Token ${tokenId} has prefix:`, prefix);
+
+                    try {
+                      groveUrl = decodeURIComponent(
+                        tokenURI.replace(`ipfs://${prefix}/`, "")
+                      );
+                      console.log(
+                        `Extracted Grove URL for token ${tokenId} from ${prefix} format:`,
+                        groveUrl
+                      );
+                    } catch (decodeError) {
+                      console.warn(
+                        `Could not decode URI for token ${tokenId}:`,
+                        decodeError
+                      );
+                    }
                   }
                 }
               }

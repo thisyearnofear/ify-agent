@@ -171,6 +171,13 @@ export default function FrameContent() {
         detectedOverlayType = "higherise";
       else if (lowerPrompt.includes("dickbuttify"))
         detectedOverlayType = "dickbuttify";
+      // Also check for 'base' without the 'ify' suffix
+      else if (lowerPrompt.includes("base"))
+        detectedOverlayType = "baseify"; // Still use 'baseify' for consistency
+      // Also check for 'higher' without the 'ify' suffix
+      else if (lowerPrompt.includes("higher"))
+        detectedOverlayType = "higherify"; // Still use 'higherify' for consistency
+
       setBaseOverlayType(detectedOverlayType);
 
       // Call the agent API to generate the image
@@ -546,14 +553,19 @@ export default function FrameContent() {
     setError(null);
 
     try {
+      // Normalize the overlay type to ensure consistency
+      const normalizedOverlayType = overlayType.toLowerCase();
+      console.log("Minting with overlay type:", normalizedOverlayType);
+
       // Create a metadata URI that includes the Grove URL
-      const metadataUri = `ipfs://${overlayType.toLowerCase()}/${encodeURIComponent(
+      const metadataUri = `ipfs://${normalizedOverlayType}/${encodeURIComponent(
         groveUrl
       )}`;
+      console.log("Metadata URI:", metadataUri);
 
       // Get the overlay type enum value
       let overlayTypeEnum = 0; // Default to HIGHER
-      switch (overlayType.toLowerCase()) {
+      switch (normalizedOverlayType) {
         case "higherify":
           overlayTypeEnum = 0; // HIGHER
           break;
@@ -567,6 +579,7 @@ export default function FrameContent() {
           overlayTypeEnum = 3; // DICKBUTTIFY
           break;
       }
+      console.log("Overlay type enum:", overlayTypeEnum);
 
       // Contract address on Base Sepolia
       const contractAddress = "0x7bc9ff8519cf0ba2cc3ead8dc27ea3d9cb760e12";
