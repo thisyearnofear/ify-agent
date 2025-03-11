@@ -294,16 +294,16 @@ export default function MintScrollifyNFTButton({
 
       <button
         className={`w-full py-2 px-4 rounded-md text-white ${
-          !isConnected || isMinting || isConfirming
+          !isConnected || isMinting || isConfirming || isSwitchingNetwork
             ? "bg-gray-400 cursor-not-allowed"
             : !isCorrectNetwork
             ? "bg-yellow-600 hover:bg-yellow-700"
             : "bg-purple-600 hover:bg-purple-700"
         }`}
         onClick={!isCorrectNetwork ? handleSwitchNetwork : handleMint}
-        disabled={isMinting || isConfirming}
+        disabled={isMinting || isConfirming || isSwitchingNetwork}
       >
-        {buttonText}
+        {isSwitchingNetwork ? "Switching Network..." : buttonText}
       </button>
     </div>
   );

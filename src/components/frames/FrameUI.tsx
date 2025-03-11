@@ -10,7 +10,6 @@ interface MintButtonsProps {
   isMinting: boolean;
   isMantleify: boolean;
   baseOverlayType: string | null;
-  prompt: string;
   isScrollify?: boolean;
   isOnMantleSepolia: boolean;
   isOnBaseSepolia: boolean;
@@ -29,7 +28,6 @@ export const MintButtons = ({
   isMinting,
   isMantleify,
   baseOverlayType,
-  prompt,
   isScrollify,
   isOnMantleSepolia,
   isOnBaseSepolia,

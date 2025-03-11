@@ -4,11 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import FrameSDK from "@farcaster/frame-sdk";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { wagmiConfig } from "@/components/providers/WagmiConfig";
-import Image from "next/image";
-import { logger } from "@/lib/logger";
-import { encodeFunctionData, parseAbiItem } from "viem";
-import { baseSepolia } from "viem/chains";
-import { FarcasterContext, FarcasterUser } from "@/types/farcaster";
+import { FarcasterContext } from "@/types/farcaster";
 import {
   isOnBaseSepolia,
   isOnMantleSepolia,
@@ -16,7 +12,6 @@ import {
   handleSwitchToBaseSepolia,
   handleSwitchToMantleSepolia,
   handleSwitchToScrollSepolia,
-  EthereumError,
 } from "@/components/frames/NetworkHandlers";
 import {
   MintResult,
@@ -32,17 +27,6 @@ import {
   PromptInput,
 } from "@/components/frames/FrameUI";
 
-// Deployed contract address on Mantle Sepolia
-const CONTRACT_ADDRESS = "0x8b62d610c83c42ea8a8fc10f80581d9b7701cd37";
-
-// Contract ABI fragment for the mint function
-const MINT_FUNCTION = parseAbiItem(
-  "function mintNFT(address to, address creator, string groveUrl, string tokenURI) returns (uint256)"
-);
-
-// Define Scroll Sepolia chain ID
-const SCROLL_SEPOLIA_CHAIN_ID = 534351;
-
 export default function FrameContent() {
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [contextData, setContextData] = useState<FarcasterContext | null>(null);
@@ -56,18 +40,14 @@ export default function FrameContent() {
   const [baseOverlayType, setBaseOverlayType] = useState<string | null>(null);
   const [isScrollify, setIsScrollify] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
-  const [isConfirming, setIsConfirming] = useState(false);
   const [mintResult, setMintResult] = useState<MintResult | null>(null);
   const [chainId, setChainId] = useState<number | null>(null);
-  const [isSwitchingNetwork, setIsSwitchingNetwork] = useState(false);
-  const [mintTxHash, setMintTxHash] = useState<string | null>(null);
-  const [mintExplorerUrl, setMintExplorerUrl] = useState<string | null>(null);
-  const [isSwitchingToScroll, setIsSwitchingToScroll] = useState(false);
 
   const { address, isConnected } = useAccount();
   const { connect } = useConnect();
   const { disconnect } = useDisconnect();
 
+  // Initialize the SDK
   useEffect(() => {
     const init = async () => {
       try {
@@ -90,21 +70,21 @@ export default function FrameContent() {
   }, []);
 
   // Check network on mount and when connection changes
-  const checkNetwork = async () => {
-    if (isConnected && window.ethereum) {
-      try {
-        const chainIdHex = await window.ethereum.request({
-          method: "eth_chainId",
-        });
-        const currentChainId = parseInt(chainIdHex, 16);
-        setChainId(currentChainId);
-      } catch (err) {
-        console.error("Error checking chain ID:", err);
-      }
-    }
-  };
-
   useEffect(() => {
+    const checkNetwork = async () => {
+      if (isConnected && window.ethereum) {
+        try {
+          const chainIdHex = await window.ethereum.request({
+            method: "eth_chainId",
+          });
+          const currentChainId = parseInt(chainIdHex, 16);
+          setChainId(currentChainId);
+        } catch (err) {
+          console.error("Error checking chain ID:", err);
+        }
+      }
+    };
+
     checkNetwork();
 
     // Listen for chain changes
@@ -235,15 +215,21 @@ export default function FrameContent() {
   };
 
   const handleSwitchToBase = async () => {
-    await handleSwitchToBaseSepolia(setError, setIsSwitchingNetwork);
+    // Create a no-op function to satisfy the API
+    const noOp = () => {};
+    await handleSwitchToBaseSepolia(setError, noOp);
   };
 
   const handleSwitchToMantle = async () => {
-    await handleSwitchToMantleSepolia(setError, setIsSwitchingNetwork);
+    // Create a no-op function to satisfy the API
+    const noOp = () => {};
+    await handleSwitchToMantleSepolia(setError, noOp);
   };
 
   const handleSwitchToScroll = async () => {
-    await handleSwitchToScrollSepolia(setError, setIsSwitchingToScroll);
+    // Create a no-op function to satisfy the API
+    const noOp = () => {};
+    await handleSwitchToScrollSepolia(setError, noOp);
   };
 
   const mintBaseNFT = async (overlayType: string) => {
@@ -370,7 +356,6 @@ export default function FrameContent() {
             isMinting={isMinting}
             isMantleify={isMantleify}
             baseOverlayType={baseOverlayType}
-            prompt={prompt}
             isScrollify={isScrollify}
             isOnMantleSepolia={isOnMantleSepolia(chainId)}
             isOnBaseSepolia={isOnBaseSepolia(chainId)}

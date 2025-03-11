@@ -155,10 +155,14 @@ export const handleMintBaseNFT = async (
     let errorMessage: string | undefined;
 
     if (typeof err === "object") {
-      const errorObj = err as any;
-      errorCode = errorObj.code;
+      const errorObj = err as Record<string, unknown>;
+      errorCode = typeof errorObj.code === "number" ? errorObj.code : undefined;
       errorMessage =
-        errorObj.message || errorObj.reason || JSON.stringify(errorObj);
+        typeof errorObj.message === "string"
+          ? errorObj.message
+          : typeof errorObj.reason === "string"
+          ? errorObj.reason
+          : JSON.stringify(errorObj);
     }
 
     // Check if user rejected the transaction
@@ -278,10 +282,14 @@ export const handleMintMantleNFT = async (
     let errorMessage: string | undefined;
 
     if (typeof err === "object") {
-      const errorObj = err as any;
-      errorCode = errorObj.code;
+      const errorObj = err as Record<string, unknown>;
+      errorCode = typeof errorObj.code === "number" ? errorObj.code : undefined;
       errorMessage =
-        errorObj.message || errorObj.reason || JSON.stringify(errorObj);
+        typeof errorObj.message === "string"
+          ? errorObj.message
+          : typeof errorObj.reason === "string"
+          ? errorObj.reason
+          : JSON.stringify(errorObj);
     }
 
     // Check if user rejected the transaction
