@@ -111,7 +111,6 @@ function AgentContent() {
     const lowerCmd = cmd.toLowerCase();
     if (lowerCmd.includes("higherify")) return "higherify";
     if (lowerCmd.includes("baseify")) return "baseify";
-    if (lowerCmd.includes("higherise")) return "higherise";
     if (lowerCmd.includes("dickbuttify")) return "dickbuttify";
     return null;
   };

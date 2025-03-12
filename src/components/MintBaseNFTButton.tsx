@@ -6,25 +6,27 @@ import { encodeFunctionData, parseAbiItem } from "viem";
 import { baseSepolia } from "viem/chains";
 
 // Deployed contract address on Base Sepolia
-const CONTRACT_ADDRESS = "0x7bc9ff8519cf0ba2cc3ead8dc27ea3d9cb760e12";
+const CONTRACT_ADDRESS = "0x90ab236bc818a1e650c68cf611edcdb8fe5bf8b3";
 
 // Overlay types enum (must match the contract)
 enum OverlayType {
   HIGHER = 0,
   BASE = 1,
-  HIGHERISE = 2,
-  DICKBUTTIFY = 3,
+  DICKBUTTIFY = 2,
 }
+
+// Original NFT price in ETH
+const ORIGINAL_PRICE = 0.05;
 
 // Contract ABI fragment for the mint function
 const MINT_FUNCTION = parseAbiItem(
-  "function mintNFT(address to, address creator, string calldata groveUrl, string calldata tokenURI, uint8 overlayType) returns (uint256)"
+  "function mintOriginalNFT(address to, address creator, string calldata groveUrl, string calldata tokenURI, uint8 overlayType) payable returns (uint256)"
 );
 
 // Alternative ABI with explicit types for fallback
 const ALTERNATIVE_ABI = [
   {
-    name: "mintNFT",
+    name: "mintOriginalNFT",
     type: "function",
     inputs: [
       { name: "to", type: "address" },
@@ -34,13 +36,13 @@ const ALTERNATIVE_ABI = [
       { name: "overlayType", type: "uint8" },
     ],
     outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "nonpayable",
+    stateMutability: "payable",
   },
 ];
 
 interface MintBaseNFTButtonProps {
   groveUrl: string;
-  overlayType: string; // "higherify", "baseify", "higherise", or "dickbuttify"
+  overlayType: string; // "higherify", "baseify", or "dickbuttify"
 }
 
 // Add type definition for Ethereum errors
@@ -103,8 +105,6 @@ export default function MintBaseNFTButton({
         return OverlayType.HIGHER;
       case "baseify":
         return OverlayType.BASE;
-      case "higherise":
-        return OverlayType.HIGHERISE;
       case "dickbuttify":
         return OverlayType.DICKBUTTIFY;
       default:
@@ -119,8 +119,6 @@ export default function MintBaseNFTButton({
         return "Higher";
       case "baseify":
         return "Base";
-      case "higherise":
-        return "Higherise";
       case "dickbuttify":
         return "Dickbuttify";
       default:
@@ -218,6 +216,10 @@ export default function MintBaseNFTButton({
       const walletAddress = accounts[0];
       const overlayTypeEnum = getOverlayTypeEnum(overlayType);
 
+      // Convert price to wei
+      const priceInWei = BigInt(ORIGINAL_PRICE * 10 ** 18);
+      const priceHex = "0x" + priceInWei.toString(16);
+
       try {
         // Try with the primary ABI first
         const data = encodeFunctionData({
@@ -231,12 +233,12 @@ export default function MintBaseNFTButton({
           ],
         });
 
-        // Prepare transaction
+        // Prepare transaction with value
         const txParams = {
           from: walletAddress,
           to: CONTRACT_ADDRESS,
           data,
-          value: "0x0",
+          value: priceHex,
         };
 
         // Send transaction
@@ -260,6 +262,7 @@ export default function MintBaseNFTButton({
           metadataUri,
           overlayType,
           overlayTypeEnum,
+          value: priceHex,
         });
       } catch (encodeError: unknown) {
         const error = encodeError as EthereumError;
@@ -280,12 +283,12 @@ export default function MintBaseNFTButton({
             ],
           });
 
-          // Prepare transaction
+          // Prepare transaction with value
           const txParams = {
             from: walletAddress,
             to: CONTRACT_ADDRESS,
             data,
-            value: "0x0",
+            value: priceHex,
           };
 
           // Send transaction
@@ -309,6 +312,7 @@ export default function MintBaseNFTButton({
             metadataUri,
             overlayType,
             overlayTypeEnum,
+            value: priceHex,
           });
         } catch (fallbackError: unknown) {
           console.error("Error with fallback ABI method:", fallbackError);
@@ -382,7 +386,9 @@ export default function MintBaseNFTButton({
             ? "Initiating..."
             : isConfirming
             ? "Confirming..."
-            : `Mint ${getOverlayTypeName(overlayType)} NFT on Base Sepolia`}
+            : `Mint ${getOverlayTypeName(
+                overlayType
+              )} NFT (${ORIGINAL_PRICE} ETH)`}
         </button>
       ) : (
         <div className="text-sm">

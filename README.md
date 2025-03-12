@@ -483,81 +483,63 @@ To test the Mantle NFT integration:
 
 ## Base NFT Integration
 
-The application includes NFT minting functionality on the Base Sepolia testnet, allowing users to mint images created with the "higherify", "baseify", "higherise", and "dickbuttify" overlays as NFTs.
+The application now includes an upgraded NFT system on Base Sepolia testnet that separates originals and editions into two contracts:
 
-### How It Works
+### HigherBaseOriginals Contract
 
-1. When a user generates an image with any of the supported overlays (higherify, baseify, higherise, or dickbuttify), they can mint it as an NFT directly from the UI.
-2. The minting process uses a smart contract deployed on the Base Sepolia testnet.
-3. The NFT metadata includes a reference to the Grove URL, ensuring the image is permanently stored.
-4. The contract distinguishes between different overlay types, allowing for collection-specific views.
-5. Users can view their minted NFTs in the gallery section of the admin page.
+This contract handles the minting of original NFTs for images created with our overlay system.
 
-### Smart Contract Details
-
-- **Contract Address**: `0x7bc9ff8519cf0ba2cc3ead8dc27ea3d9cb760e12` (Base Sepolia Testnet)
-- **Contract Name**: HigherBaseNFT
+- **Contract Address**: `0x90ab236bc818a1e650c68cf611edcdb8fe5bf8b3` (Base Sepolia Testnet)
+- **Contract Name**: HigherBaseOriginals
 - **Token Standard**: ERC-721
-- **Token Symbol**: MONFT
+- **Token Symbol**: HBO
+- **Minting Price**: 0.05 ETH (testnet ETH)
+- **Supported Overlays**: Higher, Base, Dickbuttify
 
 The contract includes the following key functions:
 
 ```solidity
-// Mint a new NFT with the given Grove URL and metadata
-function mintNFT(
+// Mint a new original NFT with the given Grove URL and metadata
+function mintOriginalNFT(
     address to,
     address creator,
     string calldata groveUrl,
     string calldata tokenURI,
     OverlayType overlayType
-) external returns (uint256)
+) external payable returns (uint256)
 
 // Check if a Grove URL has already been minted
 function isGroveUrlMinted(string calldata groveUrl) public view returns (bool)
-
-// Get the token ID for a Grove URL
-function getTokenIdByGroveUrl(string calldata groveUrl) external view returns (uint256)
-
-// Get the overlay type for a token
-function getOverlayType(uint256 tokenId) external view returns (OverlayType)
-
-// Get all tokens of a specific overlay type
-function getTokensByOverlayType(OverlayType overlayType) external view returns (uint256[] memory)
 ```
 
-### Minting Process
+### HigherBaseEditions Contract
 
-1. User generates an image with one of the supported overlays (higherify, baseify, higherise, or dickbuttify)
-2. The image is stored on Grove for permanent storage
-3. User connects their wallet to the Base Sepolia network
-4. User clicks the "Mint as NFT" button
-5. The application prepares the transaction with:
-   - Recipient address (user's wallet)
-   - Creator address (user's wallet)
-   - Grove URL (for image reference)
-   - Token URI (metadata including the Grove URL)
-   - Overlay type (HIGHER=0, BASE=1, HIGHERISE=2, DICKBUTTIFY=3)
-6. The transaction is sent to the Base Sepolia network
-7. Once confirmed, the NFT appears in the user's wallet and in the gallery
+This companion contract allows users to mint editions of original NFTs. This functionality is not directly accessible from our main app but is available through a separate interface.
 
-### Viewing Minted NFTs
+- **Contract Address**: `0x9166d2931f1d3f536ef9049bb6700ca4ae418f8f` (Base Sepolia Testnet)
+- **Contract Name**: HigherBaseEditions
+- **Token Standard**: ERC-1155
+- **Edition Price**: 0.01 ETH (testnet ETH)
+- **Maximum Editions**: 100 per original
 
-Minted NFTs can be viewed in several ways:
+The contract includes the following key functions:
 
-1. **Gallery View**: The admin page includes a gallery of all minted NFTs, with filters for different overlay collections
-2. **Base Explorer**: Each NFT includes a link to view the transaction on Base Explorer
-3. **Wallet**: NFTs appear in the user's wallet if it supports ERC-721 tokens on Base Sepolia
+```solidity
+// Mint an edition of an original NFT
+function mintEdition(uint256 originalId) external payable returns (uint256)
 
-### Testing Base Integration
+// Get the URI for an edition
+function uri(uint256 editionId) public view returns (string memory)
+```
 
-To test the Base NFT integration:
+### How It Works
 
-1. Connect your wallet to the Base Sepolia network
-2. Get some test ETH from the [Base Sepolia Faucet](https://www.coinbase.com/faucets/base-ethereum-goerli-faucet)
-3. Generate an image with one of the supported overlays (higherify, baseify, higherise, or dickbuttify)
-4. Click the "Mint as NFT" button
-5. Confirm the transaction in your wallet
-6. View your NFT in the gallery or on Base Explorer
+1. Users can mint original NFTs directly from our app after creating images with supported overlays
+2. Each original costs 0.05 testnet ETH to mint
+3. The original NFTs are stored on the HigherBaseOriginals contract
+4. Editions of these originals can be minted through a separate interface using the HigherBaseEditions contract
+5. Each edition costs 0.01 testnet ETH to mint
+6. Editions reference the original NFT's metadata with an edition number appended
 
 ## Farcaster Integration
 
@@ -657,7 +639,7 @@ The allowlist is a list of Farcaster FIDs (Farcaster IDs) that are authorized to
    ```bash
    curl -X POST "https://your-app-url.com/api/farcaster/allowed-users?apiKey=YOUR_ADMIN_API_KEY" \
      -H "Content-Type: application/json" \
-     -d '{"users": [5254, 8685, 323496, 7316]}'
+     -d '{"users": [5254, 8685, 323496, 7316, 898337]}'
    ```
 
    This will replace the existing allowlist with the new list of FIDs. Make sure to include all existing FIDs you want to keep, plus any new ones.
