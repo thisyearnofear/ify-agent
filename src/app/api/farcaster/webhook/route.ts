@@ -200,8 +200,8 @@ const replyToCast = async (
       throw new Error("Missing required environment variables");
     }
 
-    // Add the line "@toka what do you see?" to the response
-    const responseText = `${text}\n\n@toka what do you see?`;
+    // Only add the "@toka what do you see?" line if there's an image
+    const responseText = imageUrl ? `${text}\n\n@toka what do you see?` : text;
 
     const neynarClient = getNeynarClient();
     const publishCastResponse = await neynarClient.publishCast({
@@ -297,20 +297,62 @@ async function processCommand(commandText: string) {
     /^(generate|create|make|draw)\s+/i.test(commandText.trim()) ||
     /^(a|an)\s+(image|picture|photo)\s+of\s+/i.test(commandText.trim());
 
+  // Check if this is a command that starts with an overlay name followed by "a" or "an" and a noun
+  // Example: "dickbuttify a pyramid of apples"
+  const overlayKeywords = [
+    "degenify",
+    "higherify",
+    "scrollify",
+    "lensify",
+    "higherise",
+    "dickbuttify",
+    "nikefy",
+    "nounify",
+    "baseify",
+    "clankerify",
+    "mantleify",
+  ];
+  const overlayFollowedByNoun = new RegExp(
+    `^(${overlayKeywords.join("|")})\\s+(a|an)\\s+\\w+`,
+    "i"
+  );
+  const isOverlayGenerationCommand = overlayFollowedByNoun.test(
+    commandText.toLowerCase().trim()
+  );
+
   // Parse the command using our service
   const parsedCommand = imageService.parseCommand(commandText, "farcaster");
 
-  // If it's an explicit generation command, force the action to be generate
-  if (isExplicitGenerationCommand) {
+  // If it's an explicit generation command or overlay+noun pattern, force the action to be generate
+  if (isExplicitGenerationCommand || isOverlayGenerationCommand) {
     parsedCommand.action = "generate";
     parsedCommand.useParentImage = false;
+
+    logger.info("Detected generation command", {
+      action: parsedCommand.action,
+      prompt: parsedCommand.prompt,
+      isExplicitGeneration: isExplicitGenerationCommand,
+      isOverlayGeneration: isOverlayGenerationCommand,
+    });
 
     // Make sure we have a prompt - if not, extract it from the command
     if (!parsedCommand.prompt || parsedCommand.prompt.length < 3) {
       // Extract prompt from generation command
-      const promptMatch = commandText.match(
-        /^(?:generate|create|make|draw)\s+(?:a|an)?\s*(?:image|picture|photo)?\s*(?:of|with)?\s*(.*)/i
-      );
+      let promptMatch;
+      if (isExplicitGenerationCommand) {
+        promptMatch = commandText.match(
+          /^(?:generate|create|make|draw)\s+(?:a|an)?\s*(?:image|picture|photo)?\s*(?:of|with)?\s*(.*)/i
+        );
+      } else if (isOverlayGenerationCommand) {
+        // Extract prompt from overlay+noun pattern
+        promptMatch = commandText.match(
+          new RegExp(
+            `^(?:${overlayKeywords.join("|")})\\s+(?:a|an)\\s+(.*?)(?:\\.|$)`,
+            "i"
+          )
+        );
+      }
+
       if (promptMatch && promptMatch[1]) {
         parsedCommand.prompt = promptMatch[1].trim();
       } else {
@@ -318,15 +360,10 @@ async function processCommand(commandText: string) {
         parsedCommand.prompt = commandText
           .replace(/^(generate|create|make|draw)\s+/i, "")
           .replace(/^(a|an)\s+(image|picture|photo)\s+of\s+/i, "")
+          .replace(new RegExp(`^(${overlayKeywords.join("|")})\\s+`, "i"), "")
           .trim();
       }
     }
-
-    logger.info("Detected explicit generation command", {
-      action: parsedCommand.action,
-      prompt: parsedCommand.prompt,
-      isExplicitGeneration: true,
-    });
   }
 
   // Check if this is a text-only command (has text parameters but no overlay mode)
@@ -354,7 +391,8 @@ async function processCommand(commandText: string) {
     parsedCommand.action === "overlay" &&
     parsedCommand.overlayMode &&
     !parsedCommand.useParentImage &&
-    (!parsedCommand.prompt || parsedCommand.prompt.length < 10)
+    (!parsedCommand.prompt || parsedCommand.prompt.length < 10) &&
+    !isOverlayGenerationCommand // Skip if already identified as overlay+noun pattern
   ) {
     // This is likely a generation command with an overlay
     parsedCommand.action = "generate";

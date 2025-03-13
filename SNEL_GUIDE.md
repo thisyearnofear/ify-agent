@@ -137,6 +137,32 @@ Key fixes:
 - Changed `style: #ff69b4` to `color to #ff69b4`
 - Kept the text parameters as they were (these were correct)
 
+### Making Generation Intent Clear
+
+When you want to generate a new image with an overlay (rather than applying an overlay to an existing image), make your intent clear by:
+
+❌ **Ambiguous generation intent**:
+
+```
+@snel dickbuttify a pyramid of apples
+```
+
+This might be interpreted as applying dickbuttify to an existing image of a pyramid of apples.
+
+✅ **Clear generation intent**:
+
+```
+@snel generate a pyramid of apples with dickbuttify overlay
+```
+
+✅ **Alternative clear structure**:
+
+```
+@snel create an image of a pyramid of apples. dickbuttify
+```
+
+If Snel responds with "I couldn't find an image in the parent cast," it means your command was interpreted as an overlay request rather than a generation request.
+
 ## Examples of Working Commands
 
 ### Generating New Images

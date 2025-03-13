@@ -88,14 +88,26 @@ export class FarcasterCommandParser extends BaseCommandParser {
       // Check if there's a descriptive prompt
       const hasDescriptivePrompt = result.prompt && result.prompt.length > 10;
 
-      if (hasDescriptivePrompt) {
-        // If there's a descriptive prompt, this is likely a generation command
+      // Check if the command starts with an overlay name followed by "a" or "an" and a noun
+      // Example: "dickbuttify a pyramid of apples"
+      const overlayFollowedByNoun = new RegExp(
+        `^(${this.overlayKeywords.join("|")})\\s+(a|an)\\s+\\w+`,
+        "i"
+      );
+      const matchesOverlayNounPattern = overlayFollowedByNoun.test(
+        input.toLowerCase().trim()
+      );
+
+      if (hasDescriptivePrompt || matchesOverlayNounPattern) {
+        // If there's a descriptive prompt or it matches the overlay+noun pattern,
+        // this is likely a generation command
         result.action = "generate";
         logger.info(
-          "Detected generation command with overlay from descriptive prompt",
+          "Detected generation command with overlay from descriptive prompt or pattern",
           {
             overlayMode: result.overlayMode,
             prompt: result.prompt,
+            matchesPattern: matchesOverlayNounPattern,
           }
         );
       } else {
