@@ -49,6 +49,12 @@ const PARENT_IMAGE_PATTERNS = [
   /this\s+one/i,
   /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)\s+this/i,
   /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)\.?\s*$/i, // Just the overlay name alone
+  // Add even more patterns to catch common cases
+  /add\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)\s+to\s+this/i,
+  /put\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)\s+on\s+this/i,
+  /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)\s+it/i,
+  /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)\s+the\s+image/i,
+  /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)/i, // Any command starting with an overlay keyword
 ];
 
 // Control instruction patterns to remove from prompt
@@ -197,6 +203,17 @@ function cleanPrompt(text: string): string {
     .replace(/[.,\s]+$/, "")
     .trim();
 
+  // If the cleaned text is too short, it might have been over-cleaned
+  // In that case, try a more conservative cleaning approach
+  if (cleanedText.length < 5 && text.length > 10) {
+    // Only remove the scale and position parameters
+    cleanedText = text
+      .replace(/scale\s+(?:to|by)?\s*-?\d+\.?\d*/gi, "")
+      .replace(/position\s+(?:at|to)?\s*-?\d+\.?\d*[,\s]+-?\d+\.?\d*/gi, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
   return cleanedText;
 }
 
@@ -210,8 +227,93 @@ export function parseCommand(input: string): ParsedCommand {
     prompt: "",
   };
 
+  // Check if the command starts with an overlay keyword
+  const overlayKeywords = [
+    "higherify",
+    "degenify",
+    "scrollify",
+    "lensify",
+    "higherise",
+    "dickbuttify",
+    "nikefy",
+    "nounify",
+    "baseify",
+    "clankerify",
+    "mantleify",
+  ];
+
+  const lowerInput = input.toLowerCase().trim();
+
+  // Check if the command starts with an overlay keyword
+  for (const keyword of overlayKeywords) {
+    if (lowerInput.startsWith(keyword)) {
+      result.action = "overlay";
+      result.useParentImage = true;
+      result.overlayMode = keyword as OverlayMode;
+
+      // Extract the prompt after the overlay keyword
+      const promptAfterKeyword = input.substring(keyword.length).trim();
+      if (promptAfterKeyword && promptAfterKeyword.length > 0) {
+        // Store the original prompt before cleaning
+        const originalPrompt = promptAfterKeyword;
+
+        // Special case for "higherify a photograph of..." pattern
+        const photoMatch = originalPrompt.match(/^a\s+photograph\s+of\s+(.+)/i);
+        if (photoMatch && photoMatch[1]) {
+          const photoDescription = photoMatch[1];
+          // Extract scale if present
+          const scaleMatch = photoDescription.match(
+            /(.+?)(?:\.\s*scale\s+(?:to|by)?\s*(-?\d+\.?\d*))/i
+          );
+
+          if (scaleMatch) {
+            // We have both a description and scale
+            result.prompt = scaleMatch[1].trim();
+
+            if (scaleMatch[2]) {
+              if (!result.controls) result.controls = {};
+              result.controls.scale = parseFloat(scaleMatch[2]);
+              logger.info(
+                `Extracted scale from photo description: ${result.controls.scale}`
+              );
+            }
+          } else {
+            // Just the photo description
+            result.prompt = photoDescription.trim();
+          }
+
+          logger.info(`Extracted photo description: "${result.prompt}"`);
+        } else {
+          // Clean the prompt by removing control instructions
+          result.prompt = cleanPrompt(originalPrompt);
+
+          // Special handling for scale and other controls
+          const scaleMatch = originalPrompt.match(
+            /scale\s+(?:to|by)?\s*(-?\d+\.?\d*)/i
+          );
+          if (scaleMatch && scaleMatch[1]) {
+            if (!result.controls) result.controls = {};
+            result.controls.scale = parseFloat(scaleMatch[1]);
+            logger.info(
+              `Extracted scale from prompt: ${result.controls.scale}`
+            );
+          }
+        }
+
+        logger.info(
+          `Extracted prompt after overlay keyword: "${result.prompt}"`
+        );
+      }
+
+      logger.info(
+        `Command starts with overlay keyword: ${keyword}, will apply to parent image`
+      );
+      break;
+    }
+  }
+
   // Check for explicit command prefixes
-  if (input.toLowerCase().startsWith("overlay:")) {
+  if (lowerInput.startsWith("overlay:")) {
     // Explicit overlay command - will apply to parent image
     result.action = "overlay";
     result.useParentImage = true;
@@ -220,7 +322,7 @@ export function parseCommand(input: string): ParsedCommand {
     logger.info(
       "Explicit overlay command detected, will apply to parent image"
     );
-  } else if (input.toLowerCase().startsWith("generate:")) {
+  } else if (lowerInput.startsWith("generate:")) {
     // Explicit generate command - will create a new image
     result.action = "generate";
     result.useParentImage = false;
@@ -679,7 +781,7 @@ export function parseCommand(input: string): ParsedCommand {
       if (!result.prompt || result.prompt.trim() === "") {
         // Remove the overlay keyword and any control parameters
         let promptText = input
-          .replace(new RegExp(overlayKeyword, "gi"), "")
+          .replace(new RegExp(`^${overlayKeyword}\\b`, "i"), "") // Only replace at the beginning
           .replace(/scale\s+to\s+[\d\.]+/gi, "")
           .replace(/scale\s+[\d\.]+/gi, "")
           .replace(/position\s+at\s+[\d\.]+\s*,\s*[\d\.]+/gi, "")

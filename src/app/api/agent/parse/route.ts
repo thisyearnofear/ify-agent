@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { parseCommand } from "@/lib/command-parser";
+import { parseCommand } from "@/lib/command-parser/index";
 
 // Mark the route as dynamic to prevent static optimization
 export const dynamic = "force-dynamic";
@@ -15,7 +15,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const parsedCommand = parseCommand(command);
+    // Use the web interface parser for the agent frontend
+    const parsedCommand = parseCommand(command, "web");
     return NextResponse.json(parsedCommand);
   } catch {
     return NextResponse.json(

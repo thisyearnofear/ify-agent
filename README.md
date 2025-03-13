@@ -489,7 +489,7 @@ The application now includes an upgraded NFT system on Base Sepolia testnet that
 
 This contract handles the minting of original NFTs for images created with our overlay system.
 
-- **Contract Address**: `0x90ab236bc818a1e650c68cf611edcdb8fe5bf8b3` (Base Sepolia Testnet)
+- **Contract Address**: `0xf83BEE9560F7DBf5b103e8449d7869AF1E5EBD80` (Base Sepolia Testnet)
 - **Contract Name**: HigherBaseOriginals
 - **Token Standard**: ERC-721
 - **Token Symbol**: HBO

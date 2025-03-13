@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { parseCommand } from "@/lib/command-parser";
+import { parseCommand } from "@/lib/command-parser/index";
 import { logger } from "@/lib/logger";
 import { NeynarAPIClient } from "@neynar/nodejs-sdk";
 import { getAllowedUsers } from "@/lib/farcaster-allowed-users";
 import { createHmac } from "crypto";
+import { ServiceFactory } from "@/lib/services";
 
 // Mark as dynamic to prevent static optimization
 export const dynamic = "force-dynamic";
@@ -196,31 +197,36 @@ const replyToCast = async (
   imageUrl?: string
 ) => {
   try {
-    if (!SIGNER_UUID) {
-      throw new Error("FARCASTER_SIGNER_UUID is not defined");
+    if (!NEYNAR_API_KEY || !SIGNER_UUID || !BOT_FID) {
+      throw new Error("Missing required environment variables");
     }
 
+    // Add the line "@toka what do you see?" to the response
+    const responseText = `${text}\n\n@toka what do you see?`;
+
     const neynarClient = getNeynarClient();
-
-    // If we have an image URL, include it in the cast
-    const embeds = imageUrl ? [{ url: imageUrl }] : [];
-
-    // Publish the cast as a reply
-    const response = await neynarClient.publishCast({
+    const publishCastResponse = await neynarClient.publishCast({
       signerUuid: SIGNER_UUID,
-      text,
-      embeds,
-      parent: parentHash, // Use 'parent' instead of 'parentHash'
+      text: responseText,
+      parent: parentHash,
+      embeds: imageUrl
+        ? [
+            {
+              url: imageUrl,
+            },
+          ]
+        : undefined,
     });
 
     logger.info("Reply sent to Farcaster", {
       parentHash,
-      replyHash: response.cast.hash,
+      responseHash: publishCastResponse.cast?.hash,
+      hasImage: !!imageUrl,
     });
 
-    return response.cast;
+    return publishCastResponse;
   } catch (error) {
-    logger.error("Failed to reply to cast", {
+    logger.error("Error replying to cast", {
       error: error instanceof Error ? error.message : String(error),
       parentHash,
     });
@@ -278,6 +284,35 @@ const verifyWebhookSignature = (
     return false;
   }
 };
+
+// Process the command
+async function processCommand(commandText: string) {
+  // Get the appropriate service for Farcaster interface
+  const imageService = ServiceFactory.getServiceForInterface("farcaster");
+
+  // Parse the command using our service
+  const parsedCommand = imageService.parseCommand(commandText, "farcaster");
+
+  // Check if this is a text-only command (has text parameters but no overlay mode)
+  const isTextOnlyCommand =
+    parsedCommand.text &&
+    !parsedCommand.overlayMode &&
+    !commandText.toLowerCase().includes("generate") &&
+    !commandText.toLowerCase().includes("create");
+
+  // If it's a text-only command, ensure we use the parent image
+  if (isTextOnlyCommand) {
+    parsedCommand.action = "overlay";
+    parsedCommand.useParentImage = true;
+    logger.info("Detected text-only command in webhook handler", {
+      textContent: parsedCommand.text?.content,
+      textPosition: parsedCommand.text?.position,
+      useParentImage: true,
+    });
+  }
+
+  return { parsedCommand, isTextOnlyCommand };
+}
 
 export async function POST(request: Request) {
   try {
@@ -399,26 +434,10 @@ export async function POST(request: Request) {
 
     logger.info("Processing Farcaster command", { commandText });
 
-    // Parse the command using our existing parser
-    const parsedCommand = parseCommand(commandText);
-
-    // Check if this is a text-only command (has text parameters but no overlay mode)
-    const isTextOnlyCommand =
-      parsedCommand.text &&
-      !parsedCommand.overlayMode &&
-      !commandText.toLowerCase().includes("generate") &&
-      !commandText.toLowerCase().includes("create");
-
-    // If it's a text-only command, ensure we use the parent image
-    if (isTextOnlyCommand) {
-      parsedCommand.action = "overlay";
-      parsedCommand.useParentImage = true;
-      logger.info("Detected text-only command in webhook handler", {
-        textContent: parsedCommand.text?.content,
-        textPosition: parsedCommand.text?.position,
-        useParentImage: true,
-      });
-    }
+    // Process the command
+    const { parsedCommand, isTextOnlyCommand } = await processCommand(
+      commandText
+    );
 
     // Check if we need to use the parent cast's image
     let parentImageUrl: string | undefined;
@@ -517,27 +536,25 @@ export async function POST(request: Request) {
     const imageUrlToUse = currentCastImageUrl || parentImageUrl;
 
     try {
-      // Call our existing agent API to process the command
-      const response = await fetch(`${APP_URL}/api/agent`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Source": "farcaster-webhook", // Add a custom header to identify the source
-        },
-        body: JSON.stringify({
-          command: commandText,
-          parameters: parsedCommand,
-          parentImageUrl: imageUrlToUse, // Pass the selected image URL
-          isFarcaster: true, // Flag to indicate this is a Farcaster request
-        }),
-      });
+      // Get the base URL for constructing image URLs
+      const baseUrl = APP_URL;
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Agent API error: ${response.status} - ${errorText}`);
+      // Get the image service for Farcaster interface
+      const imageService = ServiceFactory.getServiceForInterface("farcaster");
+
+      // Set the base image URL in the parsed command if we have one
+      if (imageUrlToUse && parsedCommand.useParentImage) {
+        parsedCommand.baseImageUrl = imageUrlToUse;
+        logger.info("Setting base image URL from cast", { imageUrlToUse });
       }
 
-      const result = await response.json();
+      // Process the command using our service
+      const result = await imageService.processCommand(
+        parsedCommand,
+        baseUrl,
+        undefined, // No wallet address for Farcaster
+        true // Flag to indicate this is a Farcaster request
+      );
 
       if (result.error) {
         await replyToCast(castData.hash, formatErrorMessage(result.error));
@@ -550,7 +567,7 @@ export async function POST(request: Request) {
       // Check if we have a Grove URL
       if (!result.groveUrl && imageUrl) {
         logger.warn(
-          "No Grove URL returned from agent API, image may not display properly on Farcaster",
+          "No Grove URL returned from image service, image may not display properly on Farcaster",
           {
             resultUrl: result.resultUrl,
             groveUrl: result.groveUrl,
@@ -570,7 +587,7 @@ export async function POST(request: Request) {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      logger.error("Error calling agent API", {
+      logger.error("Error calling image service", {
         error: errorMessage,
         command: commandText,
       });

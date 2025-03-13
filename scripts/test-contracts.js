@@ -2,7 +2,7 @@
 const { ethers } = require("ethers");
 
 // Contract addresses
-const ORIGINALS_CONTRACT = "0x90ab236bc818a1e650c68cf611edcdb8fe5bf8b3";
+const ORIGINALS_CONTRACT = "0xf83BEE9560F7DBf5b103e8449d7869AF1E5EBD80";
 const EDITIONS_CONTRACT = "0x9166d2931f1d3f536ef9049bb6700ca4ae418f8f";
 
 // ABIs (simplified for testing)
