@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ParsedCommand, AgentResponse } from "@/lib/agent-types";
+import { ParsedCommand } from "@/lib/agent-types";
 import { logger } from "@/lib/logger";
 import { v4 as uuidv4 } from "uuid";
 import { incrementTotalRequests, incrementFailedRequests } from "@/lib/metrics";

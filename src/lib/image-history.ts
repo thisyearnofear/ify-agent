@@ -2,8 +2,9 @@ import { logger } from "./logger";
 import {
   getRedisClient,
   executeWithTimeout,
-  getInMemoryData,
-  setInMemoryData,
+  // Commented out unused imports
+  // getInMemoryData,
+  // setInMemoryData,
 } from "./redis";
 
 // In-memory storage for image history (used as fallback when Redis is unavailable)

@@ -1,6 +1,7 @@
 import { ParsedCommand } from "../agent-types";
 import { logger } from "../logger";
 import { BaseCommandParser } from "./base-parser";
+import { OverlayMode } from "@/components/ImageOverlay";
 
 /**
  * Specialized command parser for the agent frontend
@@ -92,7 +93,9 @@ export class AgentCommandParser extends BaseCommandParser {
       for (const pattern of this.OVERLAY_PATTERNS) {
         const match = overlaySection.match(pattern);
         if (match && match[1]) {
-          result.overlayMode = match[1].toLowerCase() as any;
+          result.overlayMode = match[1].toLowerCase() as
+            | OverlayMode
+            | "lensify";
           result.action = "overlay";
           break;
         }
@@ -102,7 +105,7 @@ export class AgentCommandParser extends BaseCommandParser {
       if (!result.overlayMode) {
         for (const keyword of this.overlayKeywords) {
           if (overlaySection.toLowerCase().includes(keyword)) {
-            result.overlayMode = keyword as any;
+            result.overlayMode = keyword as OverlayMode | "lensify";
             result.action = "overlay";
             break;
           }

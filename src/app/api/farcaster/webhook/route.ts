@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { parseCommand } from "@/lib/command-parser/index";
 import { logger } from "@/lib/logger";
 import { NeynarAPIClient } from "@neynar/nodejs-sdk";
 import { getAllowedUsers } from "@/lib/farcaster-allowed-users";

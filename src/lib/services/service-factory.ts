@@ -1,5 +1,6 @@
 import { ImageService } from "./image-service";
-import { InterfaceType } from "@/lib/command-parser/index";
+// Remove the unused import
+// import { InterfaceType } from "../types";
 
 /**
  * Factory class for creating services
@@ -25,7 +26,8 @@ export class ServiceFactory {
    * but this could be extended in the future to provide specialized services
    */
   public static getServiceForInterface(
-    interfaceType: InterfaceType
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    interfaceType: string // Parameter kept for future use but currently unused
   ): ImageService {
     return this.getImageService();
   }

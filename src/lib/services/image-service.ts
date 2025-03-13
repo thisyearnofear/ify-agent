@@ -139,10 +139,11 @@ export class ImageService {
       await ensureFontsAreRegistered();
 
       // Initialize the response
-      const response: AgentResponse = {
-        id: requestId,
-        status: "processing",
-      };
+      // Commented out as it's not used
+      // const response: AgentResponse = {
+      //   id: requestId,
+      //   status: "processing",
+      // };
 
       // Validate overlay mode
       if (

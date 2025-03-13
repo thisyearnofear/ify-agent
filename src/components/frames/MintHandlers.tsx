@@ -120,9 +120,10 @@ export const handleMintBaseNFT = async (
             method: "wallet_switchEthereumChain",
             params: [{ chainId: "0x14a34" }],
           });
-        } catch (switchError: any) {
+        } catch (switchError: unknown) {
           // This error code indicates that the chain has not been added to MetaMask
-          if (switchError.code === 4902) {
+          const error = switchError as { code: number };
+          if (error.code === 4902) {
             await window.ethereum.request({
               method: "wallet_addEthereumChain",
               params: [
