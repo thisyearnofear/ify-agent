@@ -78,6 +78,17 @@ export class ImageService {
     // Parse the command using the appropriate parser
     const parsedCommand = parseCommand(command, interfaceType);
 
+    // Log the parsed command for debugging
+    logger.info("Initial parsed command", {
+      action: parsedCommand.action,
+      overlayMode: parsedCommand.overlayMode,
+      prompt: parsedCommand.prompt
+        ? parsedCommand.prompt.substring(0, 50) + "..."
+        : "none",
+      useParentImage: parsedCommand.useParentImage,
+      interfaceType,
+    });
+
     // If parentImageUrl is provided, use it as the baseImageUrl
     if (parentImageUrl) {
       logger.info("Using parent image URL", { parentImageUrl });
@@ -87,7 +98,7 @@ export class ImageService {
       // This allows explicit "generate:" commands to override the parent image
       if (
         !parsedCommand.useParentImage &&
-        !parsedCommand.action.startsWith("generate")
+        parsedCommand.action !== "generate"
       ) {
         // If the command doesn't have a descriptive prompt beyond the overlay keyword,
         // assume it's meant to apply to the parent image
@@ -115,7 +126,100 @@ export class ImageService {
           );
         }
       }
+    } else {
+      // No parent image URL provided
+
+      // If we have an overlay mode but no action specified, determine if this should be
+      // a generation or overlay command
+      if (
+        parsedCommand.overlayMode &&
+        parsedCommand.action !== "generate" &&
+        parsedCommand.action !== "overlay"
+      ) {
+        // Check if there's a descriptive prompt
+        const hasDescriptivePrompt =
+          parsedCommand.prompt && parsedCommand.prompt.length > 10;
+
+        if (hasDescriptivePrompt) {
+          // If there's a descriptive prompt, this is likely a generation command with overlay
+          parsedCommand.action = "generate";
+          logger.info(
+            "Setting action to generate based on descriptive prompt with overlay",
+            {
+              overlayMode: parsedCommand.overlayMode,
+              prompt: parsedCommand.prompt,
+            }
+          );
+        } else {
+          // If there's no descriptive prompt, this is likely an overlay command
+          // But since we don't have a parent image, we'll need to generate a default image
+          parsedCommand.action = "generate";
+
+          // Create a default prompt based on the overlay type
+          let defaultPrompt = "a simple background";
+          if (parsedCommand.overlayMode === "higherify") {
+            defaultPrompt = "a mountain landscape with clear sky";
+          } else if (parsedCommand.overlayMode === "degenify") {
+            defaultPrompt = "a colorful abstract pattern";
+          } else if (parsedCommand.overlayMode === "scrollify") {
+            defaultPrompt = "a minimalist tech background";
+          } else if (parsedCommand.overlayMode === "lensify") {
+            defaultPrompt = "a professional photography background";
+          } else if (parsedCommand.overlayMode === "baseify") {
+            defaultPrompt = "a blockchain themed background";
+          } else if (parsedCommand.overlayMode === "dickbuttify") {
+            defaultPrompt = "a meme-worthy background";
+          } else if (parsedCommand.overlayMode === "mantleify") {
+            defaultPrompt = "a digital landscape with mountains";
+          }
+
+          parsedCommand.prompt = defaultPrompt;
+          logger.info(
+            "Setting action to generate with default prompt for overlay",
+            {
+              overlayMode: parsedCommand.overlayMode,
+              defaultPrompt,
+            }
+          );
+        }
+      }
+
+      // If we have an explicit generation command but no prompt, extract it from the command
+      if (
+        parsedCommand.action === "generate" &&
+        (!parsedCommand.prompt || parsedCommand.prompt.length < 3)
+      ) {
+        // Try to extract a prompt from the command
+        const promptMatch = command.match(
+          /^(?:generate|create|make|draw)\s+(?:a|an)?\s*(?:image|picture|photo)?\s*(?:of|with)?\s*(.*)/i
+        );
+        if (promptMatch && promptMatch[1]) {
+          parsedCommand.prompt = promptMatch[1].trim();
+        } else {
+          // Fallback: use the whole command as prompt after removing generation keywords
+          parsedCommand.prompt = command
+            .replace(/^(generate|create|make|draw)\s+/i, "")
+            .replace(/^(a|an)\s+(image|picture|photo)\s+of\s+/i, "")
+            .trim();
+        }
+
+        logger.info("Extracted prompt for generation command", {
+          prompt: parsedCommand.prompt,
+        });
+      }
     }
+
+    // Final validation and logging
+    logger.info("Final parsed command", {
+      action: parsedCommand.action,
+      overlayMode: parsedCommand.overlayMode,
+      prompt: parsedCommand.prompt
+        ? parsedCommand.prompt.substring(0, 50) + "..."
+        : "none",
+      useParentImage: parsedCommand.useParentImage,
+      baseImageUrl: parsedCommand.baseImageUrl ? "provided" : "not provided",
+      interfaceType,
+    });
 
     return parsedCommand;
   }

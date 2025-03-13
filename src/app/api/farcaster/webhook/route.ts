@@ -289,8 +289,45 @@ async function processCommand(commandText: string) {
   // Get the appropriate service for Farcaster interface
   const imageService = ServiceFactory.getServiceForInterface("farcaster");
 
+  // Log the raw command for debugging
+  logger.info("Processing raw Farcaster command", { commandText });
+
+  // Check if this is explicitly a generation command before parsing
+  const isExplicitGenerationCommand =
+    /^(generate|create|make|draw)\s+/i.test(commandText.trim()) ||
+    /^(a|an)\s+(image|picture|photo)\s+of\s+/i.test(commandText.trim());
+
   // Parse the command using our service
   const parsedCommand = imageService.parseCommand(commandText, "farcaster");
+
+  // If it's an explicit generation command, force the action to be generate
+  if (isExplicitGenerationCommand) {
+    parsedCommand.action = "generate";
+    parsedCommand.useParentImage = false;
+
+    // Make sure we have a prompt - if not, extract it from the command
+    if (!parsedCommand.prompt || parsedCommand.prompt.length < 3) {
+      // Extract prompt from generation command
+      const promptMatch = commandText.match(
+        /^(?:generate|create|make|draw)\s+(?:a|an)?\s*(?:image|picture|photo)?\s*(?:of|with)?\s*(.*)/i
+      );
+      if (promptMatch && promptMatch[1]) {
+        parsedCommand.prompt = promptMatch[1].trim();
+      } else {
+        // Fallback: use the whole command as prompt after removing generation keywords
+        parsedCommand.prompt = commandText
+          .replace(/^(generate|create|make|draw)\s+/i, "")
+          .replace(/^(a|an)\s+(image|picture|photo)\s+of\s+/i, "")
+          .trim();
+      }
+    }
+
+    logger.info("Detected explicit generation command", {
+      action: parsedCommand.action,
+      prompt: parsedCommand.prompt,
+      isExplicitGeneration: true,
+    });
+  }
 
   // Check if this is a text-only command (has text parameters but no overlay mode)
   const isTextOnlyCommand =
@@ -307,6 +344,47 @@ async function processCommand(commandText: string) {
       textContent: parsedCommand.text?.content,
       textPosition: parsedCommand.text?.position,
       useParentImage: true,
+    });
+  }
+
+  // Check if this is an overlay command without a parent image reference
+  // but also without a descriptive prompt - in this case, it's likely
+  // meant to be a generation command with the overlay applied
+  if (
+    parsedCommand.action === "overlay" &&
+    parsedCommand.overlayMode &&
+    !parsedCommand.useParentImage &&
+    (!parsedCommand.prompt || parsedCommand.prompt.length < 10)
+  ) {
+    // This is likely a generation command with an overlay
+    parsedCommand.action = "generate";
+
+    // If we don't have a prompt, create a default one based on the overlay
+    if (!parsedCommand.prompt || parsedCommand.prompt.length < 3) {
+      let defaultPrompt = "a simple background";
+      if (parsedCommand.overlayMode === "higherify") {
+        defaultPrompt = "a mountain landscape with clear sky";
+      } else if (parsedCommand.overlayMode === "degenify") {
+        defaultPrompt = "a colorful abstract pattern";
+      } else if (parsedCommand.overlayMode === "scrollify") {
+        defaultPrompt = "a minimalist tech background";
+      } else if (parsedCommand.overlayMode === "lensify") {
+        defaultPrompt = "a professional photography background";
+      } else if (parsedCommand.overlayMode === "baseify") {
+        defaultPrompt = "a blockchain themed background";
+      } else if (parsedCommand.overlayMode === "dickbuttify") {
+        defaultPrompt = "a meme-worthy background";
+      } else if (parsedCommand.overlayMode === "mantleify") {
+        defaultPrompt = "a digital landscape with mountains";
+      }
+
+      parsedCommand.prompt = defaultPrompt;
+    }
+
+    logger.info("Converted overlay command to generation with overlay", {
+      action: parsedCommand.action,
+      overlayMode: parsedCommand.overlayMode,
+      prompt: parsedCommand.prompt,
     });
   }
 

@@ -2,6 +2,18 @@
 
 A Next.js application that provides AI-powered image generation using the Venice AI API, with built-in rate limiting and metrics tracking. It enables image overlays with predefined styles, logos, and filters as well as enabling the user to user their own images as overlays.
 
+## Quick Start Guide for Snel Bot
+
+For a concise guide on how to interact with the Snel bot on Farcaster, see [SNEL_GUIDE.md](./SNEL_GUIDE.md). This guide provides:
+
+- Simple command examples for generating images and applying overlays
+- List of all available overlay types
+- Proper syntax for customization options
+- Common mistakes to avoid
+- Troubleshooting tips
+
+This quick reference is especially useful for other bots or agents that want to interact with Snel.
+
 ## Agent Integration
 
 WOWOWIFY Agent can be controlled via natural language commands through its API, allowing external services to generate and manipulate images without interacting with the UI.
