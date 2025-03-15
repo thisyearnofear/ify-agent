@@ -4,19 +4,18 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import { ethers } from "ethers";
 
-// ScrollifyNFT contract ABI (just the functions we need)
+// ScrollifyOriginals contract ABI (just the functions we need)
 const CONTRACT_ABI = [
   "function ownerOf(uint256 tokenId) external view returns (address)",
   "function tokenURI(uint256) external view returns (string)",
   "function creators(uint256) external view returns (address)",
-  "function groveUrlToTokenId(string) external view returns (uint256)",
-  "function getTokenIdByGroveUrl(string) external view returns (uint256)",
-  "function isGroveUrlMinted(string) external view returns (bool)",
   "function totalSupply() external view returns (uint256)",
+  "function mintOriginal(string calldata _tokenURI) external payable",
+  "function MINT_PRICE() external view returns (uint256)",
 ];
 
 // Deployed contract address on Scroll Sepolia
-const CONTRACT_ADDRESS = "0x653d41fba630381aa44d8598a4b35ce257924d65";
+const CONTRACT_ADDRESS = "0xf230170c3afd6bea32ab0d7747c04a831bf24968";
 
 interface NFTItem {
   tokenId: string;

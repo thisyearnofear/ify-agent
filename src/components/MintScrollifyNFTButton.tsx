@@ -5,26 +5,21 @@ import { useAccount } from "wagmi";
 import { encodeFunctionData, parseAbiItem } from "viem";
 
 // Deployed contract address on Scroll Sepolia
-const CONTRACT_ADDRESS = "0x653d41fba630381aa44d8598a4b35ce257924d65";
+const CONTRACT_ADDRESS = "0xf230170c3afd6bea32ab0d7747c04a831bf24968";
 
 // Contract ABI fragment for the mint function
 const MINT_FUNCTION = parseAbiItem(
-  "function mintNFT(address to, address creator, string calldata groveUrl, string calldata tokenURI) returns (uint256)"
+  "function mintOriginal(string calldata _tokenURI) payable returns (uint256)"
 );
 
 // Alternative ABI with explicit types for fallback
 const ALTERNATIVE_ABI = [
   {
-    name: "mintNFT",
+    name: "mintOriginal",
     type: "function",
-    inputs: [
-      { name: "to", type: "address" },
-      { name: "creator", type: "address" },
-      { name: "groveUrl", type: "string" },
-      { name: "tokenURI", type: "string" },
-    ],
+    inputs: [{ name: "_tokenURI", type: "string" }],
     outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "nonpayable",
+    stateMutability: "payable",
   },
 ];
 
@@ -38,14 +33,16 @@ type EthereumError = {
   message: string;
 };
 
-// Scroll Sepolia chain ID
+// Scroll Sepolia chain ID - can be represented in different formats
 const SCROLL_SEPOLIA_CHAIN_ID = 534351;
+const SCROLL_SEPOLIA_CHAIN_ID_HEX = "0x82750";
 
 export default function MintScrollifyNFTButton({
   groveUrl,
 }: MintScrollifyNFTButtonProps) {
   const { address, isConnected } = useAccount();
   const [chainId, setChainId] = useState<number | null>(null);
+  const [chainIdHex, setChainIdHex] = useState<string | null>(null);
   const [isSwitchingNetwork, setIsSwitchingNetwork] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -53,8 +50,10 @@ export default function MintScrollifyNFTButton({
   const [error, setError] = useState<string | null>(null);
   const [userRejected, setUserRejected] = useState(false);
 
-  // Check if user is on the correct network
-  const isCorrectNetwork = chainId === SCROLL_SEPOLIA_CHAIN_ID;
+  // Check if user is on the correct network - handle both decimal and hex formats
+  const isCorrectNetwork =
+    chainId === SCROLL_SEPOLIA_CHAIN_ID ||
+    chainIdHex === SCROLL_SEPOLIA_CHAIN_ID_HEX;
 
   // Check current network on mount and when connection changes
   useEffect(() => {
@@ -64,7 +63,19 @@ export default function MintScrollifyNFTButton({
           const chainIdHex = await window.ethereum.request({
             method: "eth_chainId",
           });
-          setChainId(parseInt(chainIdHex, 16));
+          setChainIdHex(chainIdHex);
+
+          // Convert hex to decimal for alternative comparison
+          const decimal = parseInt(chainIdHex, 16);
+          setChainId(decimal);
+
+          console.log("Current chain ID:", {
+            hex: chainIdHex,
+            decimal: decimal,
+            isCorrect:
+              decimal === SCROLL_SEPOLIA_CHAIN_ID ||
+              chainIdHex === SCROLL_SEPOLIA_CHAIN_ID_HEX,
+          });
         } catch (err) {
           console.error("Error checking chain ID:", err);
         }
@@ -76,6 +87,7 @@ export default function MintScrollifyNFTButton({
     // Listen for chain changes
     if (window.ethereum) {
       const handleChainChanged = (chainIdHex: string) => {
+        setChainIdHex(chainIdHex);
         setChainId(parseInt(chainIdHex, 16));
       };
 
@@ -101,13 +113,32 @@ export default function MintScrollifyNFTButton({
       return;
     }
 
+    // If already on the correct network, don't try to switch
+    if (isCorrectNetwork) {
+      console.log("Already on Scroll Sepolia, no need to switch");
+      return;
+    }
+
     setIsSwitchingNetwork(true);
 
     try {
       // Try to switch to Scroll Sepolia
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0x8274f" }], // 534351 in hex
+        params: [{ chainId: SCROLL_SEPOLIA_CHAIN_ID_HEX }],
+      });
+
+      // Double-check the chain ID after switching
+      const newChainIdHex = await window.ethereum.request({
+        method: "eth_chainId",
+      });
+
+      setChainIdHex(newChainIdHex);
+      setChainId(parseInt(newChainIdHex, 16));
+
+      console.log("Switched to chain:", {
+        hex: newChainIdHex,
+        decimal: parseInt(newChainIdHex, 16),
       });
     } catch (err: unknown) {
       const error = err as EthereumError;
@@ -120,7 +151,7 @@ export default function MintScrollifyNFTButton({
             method: "wallet_addEthereumChain",
             params: [
               {
-                chainId: "0x8274f", // 534351 in hex
+                chainId: SCROLL_SEPOLIA_CHAIN_ID_HEX,
                 chainName: "Scroll Sepolia",
                 nativeCurrency: {
                   name: "ETH",
@@ -132,6 +163,14 @@ export default function MintScrollifyNFTButton({
               },
             ],
           });
+
+          // Check if the network was added and switched to
+          const newChainIdHex = await window.ethereum.request({
+            method: "eth_chainId",
+          });
+
+          setChainIdHex(newChainIdHex);
+          setChainId(parseInt(newChainIdHex, 16));
         } catch (addError) {
           setError(
             "Failed to add Scroll Sepolia network. Please add it manually."
@@ -142,8 +181,10 @@ export default function MintScrollifyNFTButton({
         setError("Failed to switch network. Please switch manually.");
         console.error("Error switching network:", error);
       }
+    } finally {
+      setIsSwitchingNetwork(false);
     }
-  }, []);
+  }, [isCorrectNetwork]);
 
   const handleMint = useCallback(async () => {
     if (!isConnected || !address || !groveUrl) {
@@ -174,45 +215,99 @@ export default function MintScrollifyNFTButton({
 
       const walletAddress = accounts[0];
 
+      // Get the mint price from the contract
       try {
-        // Try with the primary ABI first
+        // Try to get the mint price from the contract
+        const mintPriceAbi = parseAbiItem(
+          "function MINT_PRICE() view returns (uint256)"
+        );
+
+        const mintPriceData = encodeFunctionData({
+          abi: [mintPriceAbi],
+        });
+
+        const mintPriceHex = await window.ethereum.request({
+          method: "eth_call",
+          params: [
+            {
+              to: CONTRACT_ADDRESS,
+              data: mintPriceData,
+            },
+            "latest",
+          ],
+        });
+
+        console.log("Mint price from contract:", mintPriceHex);
+
+        try {
+          // Try with the primary ABI first
+          const data = encodeFunctionData({
+            abi: [MINT_FUNCTION],
+            args: [metadataUri],
+          });
+
+          // Prepare transaction
+          const txParams = {
+            from: walletAddress,
+            to: CONTRACT_ADDRESS,
+            data,
+            value: mintPriceHex, // Use the price from the contract
+          };
+
+          // Send transaction
+          const hash = await window.ethereum.request({
+            method: "eth_sendTransaction",
+            params: [txParams],
+          });
+
+          setTxHash(hash);
+          setIsMinting(false);
+          setIsConfirming(true);
+        } catch (encodeError) {
+          console.error("Error encoding function data:", encodeError);
+
+          // Fallback to alternative ABI
+          const data = encodeFunctionData({
+            abi: ALTERNATIVE_ABI,
+            args: [metadataUri],
+          });
+
+          // Prepare transaction
+          const txParams = {
+            from: walletAddress,
+            to: CONTRACT_ADDRESS,
+            data,
+            value: mintPriceHex, // Use the price from the contract
+          };
+
+          // Send transaction
+          const hash = await window.ethereum.request({
+            method: "eth_sendTransaction",
+            params: [txParams],
+          });
+
+          setTxHash(hash);
+          setIsMinting(false);
+          setIsConfirming(true);
+        }
+      } catch (priceError) {
+        console.error("Error getting mint price:", priceError);
+
+        // Fallback to hardcoded price of 0.01 ETH
+        const hardcodedPrice = "0x2386F26FC10000"; // 0.01 ETH in hex
+
+        // Try with the primary ABI
         const data = encodeFunctionData({
           abi: [MINT_FUNCTION],
-          args: [walletAddress, walletAddress, groveUrl, metadataUri],
+          args: [metadataUri],
         });
 
-        // Prepare transaction
+        // Prepare transaction with hardcoded price
         const txParams = {
           from: walletAddress,
           to: CONTRACT_ADDRESS,
           data,
-          value: "0x0",
-        };
-
-        // Send transaction
-        const hash = await window.ethereum.request({
-          method: "eth_sendTransaction",
-          params: [txParams],
-        });
-
-        setTxHash(hash);
-        setIsMinting(false);
-        setIsConfirming(true);
-      } catch (encodeError) {
-        console.error("Error encoding function data:", encodeError);
-
-        // Fallback to alternative ABI
-        const data = encodeFunctionData({
-          abi: ALTERNATIVE_ABI,
-          args: [walletAddress, walletAddress, groveUrl, metadataUri],
-        });
-
-        // Prepare transaction
-        const txParams = {
-          from: walletAddress,
-          to: CONTRACT_ADDRESS,
-          data,
-          value: "0x0",
+          value: hardcodedPrice,
         };
 
         // Send transaction

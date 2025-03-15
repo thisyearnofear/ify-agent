@@ -206,6 +206,18 @@ export const Web3Provider = ({ children }: Web3ProviderProps) => {
             "--ck-connectbutton-background": "#ffffff",
             "--ck-connectbutton-hover-background": "#f5f5f5",
           }}
+          options={{
+            // Fix for empty href issue
+            hideNoWalletCTA: true,
+            hideRecentBadge: true,
+            hideTooltips: true,
+            // Use "link" instead of false for walletConnectCTA
+            walletConnectCTA: "link",
+            // Ensure all links have proper hrefs
+            embedGoogleFonts: true,
+            // Avoid problematic modals
+            avoidLayoutShift: true,
+          }}
         >
           {mounted && children}
         </ConnectKitProvider>

@@ -724,27 +724,29 @@ The application includes NFT minting functionality on the Scroll Sepolia testnet
 
 ### Smart Contract Details
 
-- **Contract Address**: `0x653d41fba630381aa44d8598a4b35ce257924d65` (Scroll Sepolia Testnet)
-- **Contract Name**: ScrollifyNFT
+- **Contract Address**: `0xf230170c3afd6bea32ab0d7747c04a831bf24968` (Scroll Sepolia Testnet)
+- **Contract Name**: Scrollify Originals
 - **Token Standard**: ERC-721
-- **Token Symbol**: SCROLL
+- **Token Symbol**: SCROLL-O
+- **Minting Price**: 0.01 ETH (testnet ETH)
 
 The contract includes the following key functions:
 
 ```solidity
-// Mint a new NFT with the given Grove URL and metadata
-function mintNFT(
-    address to,
-    address creator,
-    string calldata groveUrl,
-    string calldata tokenURI
-) external returns (uint256)
+// Mint a new original NFT with the given token URI
+function mintOriginal(string calldata _tokenURI) external payable
 
-// Check if a Grove URL has already been minted
-function isGroveUrlMinted(string calldata groveUrl) public view returns (bool)
+// Get the token URI for a token ID
+function tokenURI(uint256 tokenId) public view returns (string memory)
 
-// Get the token ID for a Grove URL
-function getTokenIdByGroveUrl(string calldata groveUrl) external view returns (uint256)
+// Get the creator of a token
+function creators(uint256 tokenId) public view returns (address)
+
+// Get the total supply of tokens
+function totalSupply() external view returns (uint256)
+
+// Get the mint price
+function MINT_PRICE() external view returns (uint256)
 ```
 
 ### Minting Process

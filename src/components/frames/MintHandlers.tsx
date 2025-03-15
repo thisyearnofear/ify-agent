@@ -466,20 +466,19 @@ export const handleMintScrollifyNFT = async (
     console.log("Metadata URI:", metadataUri);
 
     // Contract address on Scroll Sepolia
-    const contractAddress = "0x653d41fba630381aa44d8598a4b35ce257924d65";
+    const contractAddress = "0xf230170c3afd6bea32ab0d7747c04a831bf24968";
 
-    // ABI for the mintNFT function and price getter
+    // Scroll Sepolia chain ID - can be represented in different formats
+    const SCROLL_SEPOLIA_CHAIN_ID = 534351;
+    const SCROLL_SEPOLIA_CHAIN_ID_HEX = "0x82750";
+
+    // ABI for the mintOriginal function and price getter
     const contractAbi = [
       {
-        name: "mintNFT",
+        name: "mintOriginal",
         type: "function",
-        stateMutability: "nonpayable",
-        inputs: [
-          { name: "to", type: "address" },
-          { name: "creator", type: "address" },
-          { name: "groveUrl", type: "string" },
-          { name: "tokenURI", type: "string" },
-        ],
+        stateMutability: "payable",
+        inputs: [{ name: "_tokenURI", type: "string" }],
         outputs: [{ name: "", type: "uint256" }],
       },
       {
@@ -501,55 +500,219 @@ export const handleMintScrollifyNFT = async (
 
     const walletAddress = accounts[0];
 
+    // Check if we're on Scroll Sepolia (chain ID: 534351)
+    const chainIdHex = await window.ethereum.request({ method: "eth_chainId" });
+    const chainIdDecimal = parseInt(chainIdHex as string, 16);
+
+    console.log("Current chain ID:", {
+      hex: chainIdHex,
+      decimal: chainIdDecimal,
+      isCorrect:
+        chainIdDecimal === SCROLL_SEPOLIA_CHAIN_ID ||
+        chainIdHex === SCROLL_SEPOLIA_CHAIN_ID_HEX,
+    });
+
+    // Check if we're already on the correct network
+    const isCorrectNetwork =
+      chainIdDecimal === SCROLL_SEPOLIA_CHAIN_ID ||
+      chainIdHex === SCROLL_SEPOLIA_CHAIN_ID_HEX;
+
+    if (!isCorrectNetwork) {
+      console.log("Switching to Scroll Sepolia...");
+      try {
+        await window.ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: SCROLL_SEPOLIA_CHAIN_ID_HEX }],
+        });
+
+        // Verify the switch was successful
+        const newChainIdHex = await window.ethereum.request({
+          method: "eth_chainId",
+        });
+        const newChainIdDecimal = parseInt(newChainIdHex as string, 16);
+
+        console.log("After switching, chain ID:", {
+          hex: newChainIdHex,
+          decimal: newChainIdDecimal,
+        });
+
+        // If still not on the correct network, throw an error
+        if (
+          newChainIdDecimal !== SCROLL_SEPOLIA_CHAIN_ID &&
+          newChainIdHex !== SCROLL_SEPOLIA_CHAIN_ID_HEX
+        ) {
+          throw new Error("Failed to switch to Scroll Sepolia network");
+        }
+      } catch (switchError: unknown) {
+        // This error code indicates that the chain has not been added to MetaMask
+        const error = switchError as { code: number };
+        if (error.code === 4902) {
+          try {
+            await window.ethereum.request({
+              method: "wallet_addEthereumChain",
+              params: [
+                {
+                  chainId: SCROLL_SEPOLIA_CHAIN_ID_HEX,
+                  chainName: "Scroll Sepolia",
+                  nativeCurrency: {
+                    name: "ETH",
+                    symbol: "ETH",
+                    decimals: 18,
+                  },
+                  rpcUrls: ["https://sepolia-rpc.scroll.io"],
+                  blockExplorerUrls: ["https://sepolia.scrollscan.com"],
+                },
+              ],
+            });
+
+            // Verify the network was added and switched to
+            const newChainIdHex = await window.ethereum.request({
+              method: "eth_chainId",
+            });
+            const newChainIdDecimal = parseInt(newChainIdHex as string, 16);
+
+            console.log("After adding network, chain ID:", {
+              hex: newChainIdHex,
+              decimal: newChainIdDecimal,
+            });
+
+            // If still not on the correct network, throw an error
+            if (
+              newChainIdDecimal !== SCROLL_SEPOLIA_CHAIN_ID &&
+              newChainIdHex !== SCROLL_SEPOLIA_CHAIN_ID_HEX
+            ) {
+              throw new Error(
+                "Failed to switch to Scroll Sepolia network after adding it"
+              );
+            }
+          } catch (addError) {
+            console.error("Error adding Scroll Sepolia network:", addError);
+            throw new Error(
+              "Failed to add Scroll Sepolia network. Please add it manually."
+            );
+          }
+        } else {
+          console.error("Error switching to Scroll Sepolia:", switchError);
+          throw switchError;
+        }
+      }
+    } else {
+      console.log("Already on Scroll Sepolia network, no need to switch");
+    }
+
     // Get the mint price from the contract
-    const mintPriceData = encodeFunctionData({
-      abi: contractAbi,
-      functionName: "MINT_PRICE",
-    });
+    try {
+      const mintPriceData = encodeFunctionData({
+        abi: contractAbi,
+        functionName: "MINT_PRICE",
+      });
 
-    const mintPriceHex = await window.ethereum.request({
-      method: "eth_call",
-      params: [
-        {
-          to: contractAddress,
-          data: mintPriceData,
-        },
-        "latest",
-      ],
-    });
+      const mintPriceHex = await window.ethereum.request({
+        method: "eth_call",
+        params: [
+          {
+            to: contractAddress,
+            data: mintPriceData,
+          },
+          "latest",
+        ],
+      });
 
-    // Encode the mint function call
-    const mintData = encodeFunctionData({
-      abi: contractAbi,
-      functionName: "mintNFT",
-      args: [walletAddress, walletAddress, groveUrl, metadataUri],
-    });
+      console.log("Mint price from contract:", mintPriceHex);
 
-    // Prepare transaction with the dynamically fetched price
-    const txParams = {
-      from: walletAddress,
-      to: contractAddress,
-      data: mintData,
-      value: mintPriceHex, // Use the price from the contract
-    };
+      // Encode the mint function call
+      const mintData = encodeFunctionData({
+        abi: contractAbi,
+        functionName: "mintOriginal",
+        args: [metadataUri],
+      });
 
-    // Send transaction
-    const hash = await window.ethereum.request({
-      method: "eth_sendTransaction",
-      params: [txParams],
-    });
+      // Prepare transaction with the dynamically fetched price
+      const txParams = {
+        from: walletAddress,
+        to: contractAddress,
+        data: mintData,
+        value: mintPriceHex, // Use the price from the contract
+      };
 
-    console.log("Transaction hash:", hash);
+      console.log("Transaction params:", {
+        from: txParams.from,
+        to: txParams.to,
+        value: txParams.value,
+      });
 
-    // Set transaction hash and update UI
-    setMintResult({
-      success: true,
-      message: "NFT minted successfully!",
-      transactionHash: hash as string,
-      explorerUrl: `https://sepolia.scrollscan.com/tx/${hash}`,
-    });
+      // Send transaction
+      console.log("Sending transaction...");
+      const hash = await window.ethereum.request({
+        method: "eth_sendTransaction",
+        params: [txParams],
+      });
+
+      console.log("Transaction hash:", hash);
+
+      // Set transaction hash and update UI
+      setMintResult({
+        success: true,
+        message: "NFT minted successfully!",
+        transactionHash: hash as string,
+        explorerUrl: `https://sepolia.scrollscan.com/tx/${hash}`,
+      });
+    } catch (priceError) {
+      console.error(
+        "Error getting mint price or sending transaction:",
+        priceError
+      );
+
+      // Fallback to hardcoded price of 0.01 ETH
+      const hardcodedPrice = "0x2386F26FC10000"; // 0.01 ETH in hex
+      console.log("Using hardcoded price:", hardcodedPrice);
+
+      // Encode the mint function call
+      const mintData = encodeFunctionData({
+        abi: contractAbi,
+        functionName: "mintOriginal",
+        args: [metadataUri],
+      });
+
+      // Prepare transaction with hardcoded price
+      const txParams = {
+        from: walletAddress,
+        to: contractAddress,
+        data: mintData,
+        value: hardcodedPrice,
+      };
+
+      console.log("Transaction params (with hardcoded price):", {
+        from: txParams.from,
+        to: txParams.to,
+        value: txParams.value,
+      });
+
+      // Send transaction
+      console.log("Sending transaction with hardcoded price...");
+      const hash = await window.ethereum.request({
+        method: "eth_sendTransaction",
+        params: [txParams],
+      });
+
+      console.log("Transaction hash:", hash);
+
+      // Set transaction hash and update UI
+      setMintResult({
+        success: true,
+        message: "NFT minted successfully!",
+        transactionHash: hash as string,
+        explorerUrl: `https://sepolia.scrollscan.com/tx/${hash}`,
+      });
+    }
   } catch (err: unknown) {
-    console.error("Error minting NFT:", err);
+    console.error("Error minting NFT:", {
+      error: err,
+      errorType: typeof err,
+      errorString: String(err),
+      errorJSON: JSON.stringify(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
     const error = err as EthereumError;
 
     // Check if user rejected the transaction
