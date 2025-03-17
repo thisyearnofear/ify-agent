@@ -501,7 +501,7 @@ The application now includes an upgraded NFT system on Base Sepolia testnet that
 
 This contract handles the minting of original NFTs for images created with our overlay system.
 
-- **Contract Address**: `0xf83BEE9560F7DBf5b103e8449d7869AF1E5EBD80` (Base Sepolia Testnet)
+- **Contract Address**: `0xF90552377071C01B8922c4879eA9E20A39476998` (Base Sepolia Testnet)
 - **Contract Name**: HigherBaseOriginals
 - **Token Standard**: ERC-721
 - **Token Symbol**: HBO
@@ -528,7 +528,7 @@ function isGroveUrlMinted(string calldata groveUrl) public view returns (bool)
 
 This companion contract allows users to mint editions of original NFTs. This functionality is not directly accessible from our main app but is available through a separate interface.
 
-- **Contract Address**: `0x9166d2931f1d3f536ef9049bb6700ca4ae418f8f` (Base Sepolia Testnet)
+- **Contract Address**: `0x6A0E6D188cFca3FdCcB7b68352B849b133eD74C9` (Base Sepolia Testnet)
 - **Contract Name**: HigherBaseEditions
 - **Token Standard**: ERC-1155
 - **Edition Price**: 0.01 ETH (testnet ETH)

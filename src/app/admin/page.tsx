@@ -156,7 +156,7 @@ function AdminContent() {
 
       {/* Base NFT Gallery */}
       <div className="mb-6">
-        <h2 className="text-xl font-bold text-center mb-4">Base NFTs</h2>
+        <h2 className="text-xl font-bold text-center mb-4">Base</h2>
         <BaseNFTGallery />
       </div>
 

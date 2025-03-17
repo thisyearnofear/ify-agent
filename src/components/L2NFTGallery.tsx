@@ -12,9 +12,7 @@ export default function L2NFTGallery() {
 
   return (
     <div className="mb-6">
-      <h2 className="text-xl font-bold text-center mb-4">
-        Mantle & Scroll NFTs
-      </h2>
+      <h2 className="text-xl font-bold text-center mb-4">Mantle | Scroll</h2>
 
       {/* Filter buttons - styled like BaseNFTGallery */}
       <div className="flex justify-center gap-2 mb-4">

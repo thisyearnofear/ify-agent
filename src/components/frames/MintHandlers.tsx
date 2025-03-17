@@ -68,7 +68,7 @@ export const handleMintBaseNFT = async (
     console.log("Overlay type enum:", overlayTypeEnum);
 
     // Contract address on Base Sepolia
-    const contractAddress = "0xf83BEE9560F7DBf5b103e8449d7869AF1E5EBD80";
+    const contractAddress = "0xF90552377071C01B8922c4879eA9E20A39476998";
     console.log("Using contract address:", contractAddress);
 
     // ABI for the mintNFT function and price getter - using proper format for viem

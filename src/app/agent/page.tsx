@@ -509,11 +509,6 @@ function AgentContent() {
             Higherify a dog. Opacity 0.3. Color green.
           </span>
         </div>
-        <div className="mt-3 p-3 bg-green-50 rounded border border-green-200 text-green-800 text-sm max-w-md mx-auto">
-          <strong>New!</strong> <span className="font-mono">mantle & base</span>
-          images mintable as testnet NFTs.
-          <br />
-        </div>
       </div>
     </div>
   );

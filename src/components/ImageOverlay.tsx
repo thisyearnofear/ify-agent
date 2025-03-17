@@ -297,7 +297,7 @@ export default function ImageOverlay() {
         <div className="text-center mb-4 sm:mb-8">
           <label className="block text-base sm:text-lg font-medium text-gray-700">
             {stage === "initial"
-              ? "img overlay"
+              ? "img overlay tool"
               : stage === "style"
               ? "choose style"
               : "adjust overlay"}
