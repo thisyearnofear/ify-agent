@@ -85,7 +85,7 @@ export const StyleStage = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 md:grid-cols-1 gap-2 md:gap-3">
+      <div className="grid grid-cols-4 md:grid-cols-1 gap-2 md:gap-3">
         <button
           data-theme="degenify"
           onClick={() => loadPresetOverlay("degenify")}
@@ -124,6 +124,19 @@ export const StyleStage = ({
         >
           <span className="text-xl md:text-2xl">📜</span>
           <span className="text-xs md:text-base font-medium">Scrollify</span>
+        </button>
+        <button
+          data-theme="baseify"
+          onClick={() => loadPresetOverlay("baseify")}
+          className={`p-2 md:p-4 rounded-lg transition-all flex flex-col md:flex-row items-center justify-center md:justify-start gap-1 md:gap-3 
+            ${
+              mode === "baseify"
+                ? "bg-blue-100 text-blue-800"
+                : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+            }`}
+        >
+          <span className="text-xl md:text-2xl">🔵</span>
+          <span className="text-xs md:text-base font-medium">Baseify</span>
         </button>
       </div>
 

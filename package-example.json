@@ -1,0 +1,15 @@
+{
+    "name": "wowowify-telegram-api-test",
+    "version": "1.0.0",
+    "description": "Test utility for WOWOWIFY Telegram API integration",
+    "main": "telegram-example.js",
+    "scripts": {
+        "test": "node telegram-example.js"
+    },
+    "dependencies": {
+        "axios": "^1.6.5",
+        "dotenv": "^16.3.1"
+    },
+    "author": "WOWOWIFY Team",
+    "license": "MIT"
+}

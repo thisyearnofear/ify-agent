@@ -1,34 +1,34 @@
 import { ImageService } from "./image-service";
-// Remove the unused import
-// import { InterfaceType } from "../types";
+import { logger } from "../logger";
 
 /**
- * Factory class for creating services
- * This allows clients to get the appropriate service for their interface
+ * Valid interface types for services
+ */
+export type InterfaceType = "web" | "farcaster" | "telegram";
+
+/**
+ * Factory for creating services
  */
 export class ServiceFactory {
-  // Singleton instance of the image service
-  private static imageService: ImageService;
+  private static serviceInstance: ImageService | null = null;
 
   /**
-   * Get an image service instance
-   */
-  public static getImageService(): ImageService {
-    if (!this.imageService) {
-      this.imageService = new ImageService();
-    }
-    return this.imageService;
-  }
-
-  /**
-   * Get a service instance for the specified interface
-   * Currently, we only have one image service for all interfaces,
-   * but this could be extended in the future to provide specialized services
+   * Get a service for the specified interface type
    */
   public static getServiceForInterface(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    interfaceType: string // Parameter kept for future use but currently unused
+    interfaceType: InterfaceType
   ): ImageService {
-    return this.getImageService();
+    // For now, we have a single image service implementation that handles all interfaces
+    if (!this.serviceInstance) {
+      logger.info(
+        `Creating new ImageService instance for ${interfaceType} interface`
+      );
+      this.serviceInstance = new ImageService();
+    } else {
+      logger.info(
+        `Reusing existing ImageService instance for ${interfaceType} interface`
+      );
+    }
+    return this.serviceInstance;
   }
 }

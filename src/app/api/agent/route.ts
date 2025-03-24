@@ -5,13 +5,19 @@ import { v4 as uuidv4 } from "uuid";
 import { incrementTotalRequests, incrementFailedRequests } from "@/lib/metrics";
 import { getRateLimitInfo } from "@/lib/rate-limiter";
 import { ensureFontsAreRegistered } from "@/lib/image-processor";
-import { ServiceFactory } from "@/lib/services";
+import { ServiceFactory, InterfaceType } from "@/lib/services/service-factory";
 
 // Mark the route as dynamic to prevent static optimization
 export const dynamic = "force-dynamic";
 
 // Timeout for image processing
 const TIMEOUT_MS = 30000;
+
+// Valid API keys for external agents
+const VALID_API_KEYS = {
+  ADMIN: process.env.ADMIN_API_KEY || "",
+  TELEGRAM: process.env.TELEGRAM_API_KEY || "", // Telegram agent API key
+};
 
 export async function POST(request: Request): Promise<Response> {
   const controller = new AbortController();
@@ -29,6 +35,36 @@ export async function POST(request: Request): Promise<Response> {
       request.headers.get("x-real-ip") ||
       "unknown";
 
+    // Check API key authentication for external agents
+    const apiKey = request.headers.get("x-api-key");
+    const isExternalAgent = request.headers.get("x-agent-type") === "external";
+
+    // If this is marked as an external agent request, require API key
+    if (isExternalAgent) {
+      const isValidApiKey =
+        apiKey === VALID_API_KEYS.ADMIN || apiKey === VALID_API_KEYS.TELEGRAM;
+
+      if (!apiKey || !isValidApiKey) {
+        logger.warn("Unauthorized external agent request", {
+          ip,
+          hasApiKey: !!apiKey,
+          providedKey: apiKey?.substring(0, 5) + "..." || "none",
+        });
+
+        return NextResponse.json(
+          {
+            error: "Unauthorized. Valid API key required for external agents.",
+          },
+          { status: 401 }
+        );
+      }
+
+      logger.info("Authorized external agent request", {
+        ip,
+        agent: apiKey === VALID_API_KEYS.TELEGRAM ? "Telegram" : "Admin",
+      });
+    }
+
     // Check rate limit
     const rateLimitInfo = await getRateLimitInfo(ip);
 
@@ -39,8 +75,26 @@ export async function POST(request: Request): Promise<Response> {
       "X-RateLimit-Reset": rateLimitInfo.timeToReset.toString(),
     };
 
-    if (!rateLimitInfo.isAllowed) {
-      logger.warn("Rate limit exceeded", { ip });
+    // For external agents with valid API keys, allow higher rate limits
+    const hasValidApiKey =
+      apiKey === VALID_API_KEYS.ADMIN || apiKey === VALID_API_KEYS.TELEGRAM;
+
+    if (
+      !rateLimitInfo.isAllowed &&
+      (!hasValidApiKey || rateLimitInfo.remaining < -50)
+    ) {
+      // External agents with valid API keys get 50 extra requests
+      logger.warn("Rate limit exceeded", {
+        ip,
+        isExternalAgent,
+        hasValidApiKey,
+        agent:
+          apiKey === VALID_API_KEYS.TELEGRAM
+            ? "Telegram"
+            : apiKey === VALID_API_KEYS.ADMIN
+            ? "Admin"
+            : "Unknown",
+      });
       incrementFailedRequests();
       return NextResponse.json(
         {
@@ -70,19 +124,31 @@ export async function POST(request: Request): Promise<Response> {
     // Extract wallet address for Grove storage
     const walletAddressForOverlay = body.walletAddress as string;
     const parentImageUrl = body.parentImageUrl; // Extract parent image URL
-    const isFarcaster = body.isFarcaster === true; // Check if request is from Farcaster
 
-    // If this is a Farcaster request, log it
-    if (isFarcaster) {
-      logger.info("Processing request from Farcaster webhook", {
-        ip,
-        command: command?.substring(0, 100) || "No command",
-        hasParentImage: !!parentImageUrl,
-      });
+    // Determine interface type based on request headers
+    const isFarcaster = body.isFarcaster === true;
+    const isTelegram = isExternalAgent && apiKey === VALID_API_KEYS.TELEGRAM;
+
+    // If this is a special agent request, log it
+    if (isFarcaster || isTelegram) {
+      logger.info(
+        `Processing request from ${isFarcaster ? "Farcaster" : "Telegram"}`,
+        {
+          ip,
+          command: command?.substring(0, 100) || "No command",
+          hasParentImage: !!parentImageUrl,
+        }
+      );
     }
 
     // Get the appropriate service for this interface
-    const interfaceType = isFarcaster ? "farcaster" : "web";
+    let interfaceType: InterfaceType = "web";
+    if (isFarcaster) {
+      interfaceType = "farcaster";
+    } else if (isTelegram) {
+      interfaceType = "telegram";
+    }
+
     const imageService = ServiceFactory.getServiceForInterface(interfaceType);
 
     // Parse the command if not provided explicitly

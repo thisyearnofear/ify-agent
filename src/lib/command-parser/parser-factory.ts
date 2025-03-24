@@ -1,52 +1,62 @@
 import { BaseCommandParser } from "./base-parser";
-import { FarcasterCommandParser } from "./farcaster-parser";
 import { AgentCommandParser } from "./agent-parser";
+import { FarcasterCommandParser } from "./farcaster-parser";
+import { logger } from "../logger";
 
 /**
  * Interface type for selecting the appropriate parser
  */
-export type InterfaceType = "web" | "farcaster" | "frame" | "default";
+export type InterfaceType =
+  | "web"
+  | "farcaster"
+  | "frame"
+  | "telegram"
+  | "default";
 
 /**
- * Factory class for creating command parsers
- * This allows clients to get the appropriate parser for their interface
+ * Factory class for command parsers
+ * Creates and caches the appropriate parser for each interface type
  */
 export class CommandParserFactory {
-  // Singleton instances of parsers
-  private static webParser: AgentCommandParser;
-  private static farcasterParser: FarcasterCommandParser;
-  private static defaultParser: BaseCommandParser;
+  private static parsers: Record<InterfaceType, BaseCommandParser> =
+    {} as Record<InterfaceType, BaseCommandParser>;
 
   /**
-   * Get a parser instance for the specified interface
+   * Get the appropriate parser for the given interface type
    */
   public static getParser(interfaceType: InterfaceType): BaseCommandParser {
+    // Use cached instance if available
+    if (this.parsers[interfaceType]) {
+      return this.parsers[interfaceType];
+    }
+
+    // Create a new parser based on the interface type
+    let parser: BaseCommandParser;
     switch (interfaceType) {
-      case "web":
-        if (!this.webParser) {
-          this.webParser = new AgentCommandParser();
-        }
-        return this.webParser;
-
       case "farcaster":
-        if (!this.farcasterParser) {
-          this.farcasterParser = new FarcasterCommandParser();
-        }
-        return this.farcasterParser;
-
+        parser = new FarcasterCommandParser();
+        logger.info("Created FarcasterCommandParser");
+        break;
       case "frame":
-        // For now, frames use the same parser as web
-        if (!this.webParser) {
-          this.webParser = new AgentCommandParser();
-        }
-        return this.webParser;
-
+        // Frames use the same parser as web for now
+        parser = new AgentCommandParser();
+        logger.info("Created AgentCommandParser for frame");
+        break;
+      case "telegram":
+        // Telegram uses the same parser as web for now
+        parser = new AgentCommandParser();
+        logger.info("Created AgentCommandParser for telegram");
+        break;
+      case "web":
       case "default":
       default:
-        if (!this.defaultParser) {
-          this.defaultParser = new BaseCommandParser();
-        }
-        return this.defaultParser;
+        parser = new AgentCommandParser();
+        logger.info("Created AgentCommandParser");
+        break;
     }
+
+    // Cache the parser for future use
+    this.parsers[interfaceType] = parser;
+    return parser;
   }
 }

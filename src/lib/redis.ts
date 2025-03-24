@@ -19,7 +19,6 @@ const redisOptions = {
     const delay = Math.min(times * 100, 3000);
     return delay;
   },
-  tls: {}, // Enable TLS for Upstash
   enableReadyCheck: true,
   maxLoadingRetryTime: 5000,
   reconnectOnError(err: Error) {
@@ -82,11 +81,13 @@ export function getRedisClient(): Redis {
       });
 
       // Create Redis client with explicit configuration
+      const isLocal = host === 'localhost' || host === '127.0.0.1';
       redisClient = new Redis({
         host,
         port: parseInt(port, 10),
-        username,
-        password,
+        username: isLocal ? undefined : username, // Skip username for local Redis
+        password: isLocal ? undefined : password, // Skip password for local Redis
+        tls: isLocal ? undefined : {}, // Only enable TLS for non-local Redis
         ...redisOptions,
       });
 

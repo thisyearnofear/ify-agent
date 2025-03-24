@@ -5,8 +5,8 @@ import { headers } from "next/headers";
 import { incrementTotalRequests, incrementFailedRequests } from "@/lib/metrics";
 
 const ALLOWED_MODELS = ["stable-diffusion-3.5", "fluently-xl"] as const;
-const DEFAULT_MODEL = "fluently-xl";
-const TIMEOUT_MS = 60000; // 60 seconds timeout
+const DEFAULT_MODEL = "stable-diffusion-3.5";
+const TIMEOUT_MS = 10000; // 10 seconds timeout - Vercel has 10s limit
 
 // Mark the route as dynamic to prevent static optimization
 export const dynamic = "force-dynamic";
@@ -121,13 +121,21 @@ export async function POST(request: Request) {
 
     try {
       // Use fetch with runtime configuration
-      const response = await fetch(
-        new URL("https://api.venice.ai/api/v1/image/generate").toString(),
-        {
-          ...options,
-          signal: controller.signal,
-        }
-      );
+      const apiUrl = new URL("https://api.venice.ai/api/v1/image/generate").toString();
+      
+      // Add model-specific timeout adjustments
+      if (model === "stable-diffusion-3.5") {
+        // For slower models, reduce batch size and increase timeout
+        options.body = JSON.stringify({
+          ...JSON.parse(options.body),
+          batch_size: 1, // Reduce batch size to speed up generation
+        });
+      }
+
+      const response = await fetch(apiUrl, {
+        ...options,
+        signal: controller.signal,
+      });
 
       clearTimeout(timeout);
 

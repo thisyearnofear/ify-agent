@@ -69,6 +69,8 @@ export default function ImageOverlay() {
         ? "/higher/arrows/Arrow-png-white.png"
         : presetMode === "scrollify"
         ? "/scroll/scrollify.png"
+        : presetMode === "baseify"
+        ? "/base/baseify.png"
         : "";
 
     if (presetPath) {
