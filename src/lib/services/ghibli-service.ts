@@ -8,9 +8,6 @@ export class GhibliService {
     walletAddress?: string
   ): Promise<{ resultUrl: string; groveUrl?: string }> {
     try {
-      // Download the original image if it's a URL
-      const originalImage = await downloadImage(imageUrl);
-
       // Process the image using our backend API
       const response = await fetch("/api/replicate", {
         method: "POST",
@@ -29,13 +26,14 @@ export class GhibliService {
 
       const { resultUrl } = await response.json();
 
-      // Download the processed image
+      // Download the processed image for Grove upload
       const processedImage = await downloadImage(resultUrl);
 
       // Upload to Grove if wallet address is provided
       let groveUrl: string | undefined;
       if (walletAddress) {
-        groveUrl = await uploadToGrove(processedImage, walletAddress);
+        const uploadResult = await uploadToGrove(processedImage, walletAddress);
+        groveUrl = uploadResult.uri;
       }
 
       return {

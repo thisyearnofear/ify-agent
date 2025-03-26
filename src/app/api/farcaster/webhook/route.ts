@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
 import { NeynarAPIClient } from "@neynar/nodejs-sdk";
-import { getAllowedUsers } from "@/lib/farcaster-allowed-users";
 import { createHmac } from "crypto";
 import { ServiceFactory } from "@/lib/services";
 
