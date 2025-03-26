@@ -21,4 +21,5 @@ export interface FarcasterContext {
     type: string;
     [key: string]: unknown;
   };
+  inputImageUrl?: string; // URL of the image being replied to or referenced
 }

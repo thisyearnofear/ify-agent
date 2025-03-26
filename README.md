@@ -782,6 +782,68 @@ To test the Scroll NFT integration:
 5. Confirm the transaction in your wallet
 6. View your NFT in the gallery or on Scroll Explorer
 
+## Ghibli Style Integration
+
+The application now includes a Ghibli-style transformation feature powered by the Replicate API. This allows users to transform their images into a Studio Ghibli-inspired art style.
+
+### How It Works
+
+1. When a user requests an image with the "ghiblify" overlay, the application sends the image to the Replicate API
+2. The API processes the image using a pre-trained model that applies the Ghibli art style
+3. The transformed image is then stored on Grove (if a wallet address is provided)
+4. The result is returned to the user with both the direct URL and Grove URL (if available)
+
+### Using Ghiblify
+
+You can use the ghiblify feature in several ways:
+
+1. **Through the Farcaster Bot**:
+
+   ```
+   @snel ghiblify this image
+   ```
+
+   When replying to a cast with an image, or:
+
+   ```
+   @snel ghiblify a mountain landscape
+   ```
+
+   To generate and transform a new image
+
+2. **Through the API**:
+   ```json
+   {
+     "command": "ghiblify this image",
+     "parameters": {
+       "baseImageUrl": "https://example.com/image.jpg",
+       "overlayMode": "ghiblify"
+     }
+   }
+   ```
+
+### Setup
+
+1. Get a Replicate API token from [replicate.com](https://replicate.com)
+2. Add the token to your environment variables:
+   ```bash
+   REPLICATE_API_TOKEN=your_replicate_api_token
+   ```
+
+### Technical Details
+
+The ghiblify feature uses the following Replicate model:
+
+- Model: `grabielairu/ghibli`
+- Version: `4b82bb7dbb3b153882a0c34d7f2cbc4f7012ea7eaddb4f65c257a3403c9b3253`
+
+The model is optimized for:
+
+- Landscapes and nature scenes
+- Character illustrations
+- Architectural scenes
+- General artwork transformation
+
 ## Technologies Used
 
 - [Next.js 15](https://nextjs.org/)

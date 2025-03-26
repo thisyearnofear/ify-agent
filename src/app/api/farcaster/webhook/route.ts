@@ -476,43 +476,6 @@ export async function POST(request: Request) {
       });
     }
 
-    // Get the current list of allowed users with a timeout
-    let allowedUsers: number[];
-    try {
-      // Set a timeout for getting allowed users
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => {
-          reject(new Error("Getting allowed users timed out"));
-        }, 2000); // 2 second timeout
-      });
-
-      // Race the operation against the timeout
-      allowedUsers = await Promise.race([getAllowedUsers(), timeoutPromise]);
-    } catch (error) {
-      // If there's an error getting allowed users, log it and use the default
-      logger.error("Error getting allowed users, using default", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      // Default to just the owner
-      allowedUsers = [5254]; // @papa's FID
-    }
-
-    // Check if the author is in the allowed list
-    const authorFid = castData.author?.fid;
-    const isAuthorAllowed = allowedUsers.includes(authorFid);
-
-    if (!isAuthorAllowed) {
-      logger.info("Ignoring request from unauthorized user", {
-        authorFid,
-        allowedFids: JSON.stringify(allowedUsers),
-      });
-      // Silently ignore - don't reply to unauthorized users
-      return NextResponse.json({
-        status: "ignored",
-        reason: "User not authorized",
-      });
-    }
-
     // Extract the command from the cast text
     const commandText = extractCommand(castData.text);
     if (!commandText) {
@@ -537,7 +500,8 @@ export async function POST(request: Request) {
         "Hi there! I'm Snel, a bot that can generate and modify images. Try commands like:\n\n" +
           "• '@snel higherify a mountain landscape'\n" +
           "• '@snel degenify this image' (when replying to a cast with an image)\n" +
-          "• '@snel scrollify a tech background. scale to 0.5'\n\n" +
+          "• '@snel scrollify a tech background. scale to 0.5'\n" +
+          "• '@snel ghiblify this image' (transform into Ghibli style)\n\n" +
           "Powered by Venice AI & Grove"
       );
 

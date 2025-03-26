@@ -25,6 +25,7 @@ import {
   UserWelcome,
   GeneratedImageDisplay,
   PromptInput,
+  ImageUpload,
 } from "@/components/frames/FrameUI";
 
 export default function FrameContent() {
@@ -39,9 +40,12 @@ export default function FrameContent() {
   const [isMantleify, setIsMantleify] = useState(false);
   const [baseOverlayType, setBaseOverlayType] = useState<string | null>(null);
   const [isScrollify, setIsScrollify] = useState(false);
+  const [isGhiblify, setIsGhiblify] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
   const [mintResult, setMintResult] = useState<MintResult | null>(null);
   const [chainId, setChainId] = useState<number | null>(null);
+  const [uploadedImage, setUploadedImage] = useState<File | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
 
   const { address, isConnected } = useAccount();
   const { connect } = useConnect();
@@ -127,72 +131,122 @@ export default function FrameContent() {
     setIsMantleify(false);
     setBaseOverlayType(null);
     setIsScrollify(false);
+    setIsGhiblify(false);
 
     try {
-      const response = await fetch("/api/agent", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          command: prompt,
-        }),
-      });
+      // Check if this is a ghiblify request
+      const isGhiblifyRequest = prompt.toLowerCase().includes("ghiblify");
 
-      if (!response.ok) {
-        throw new Error(`Error: ${response.statusText}`);
-      }
+      if (isGhiblifyRequest) {
+        // Extract the image URL from the prompt or context
+        const imageUrl =
+          contextData?.inputImageUrl || prompt.match(/https?:\/\/[^\s]+/)?.[0];
 
-      const data = await response.json();
-      console.log("Generation response:", data);
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      setGeneratedImage(data.resultUrl);
-      setGroveUrl(data.groveUrl || null);
-
-      // Check if this is a mantleify image
-      if (
-        prompt.toLowerCase().includes("mantleify") ||
-        (data.overlayMode && data.overlayMode.toLowerCase() === "mantleify")
-      ) {
-        setIsMantleify(true);
-      }
-
-      // Check if this is a scrollify image
-      if (
-        prompt.toLowerCase().includes("scrollify") ||
-        (data.overlayMode && data.overlayMode.toLowerCase() === "scrollify")
-      ) {
-        setIsScrollify(true);
-      }
-
-      // Check if this is a Base NFT-compatible overlay
-      const baseOverlays = ["higherify", "baseify", "higherise", "dickbuttify"];
-      for (const overlay of baseOverlays) {
-        if (
-          prompt.toLowerCase().includes(overlay) ||
-          (data.overlayMode && data.overlayMode.toLowerCase() === overlay)
-        ) {
-          setBaseOverlayType(overlay);
-          break;
+        if (!imageUrl) {
+          throw new Error("No image URL found to transform");
         }
-      }
 
-      // Post message to parent frame
-      postMessageToParent("imageGenerated", {
-        imageUrl: data.resultUrl,
-        groveUrl: data.groveUrl,
-      });
+        // Call the replicate endpoint
+        const response = await fetch("/api/replicate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            imageUrl,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Error: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        setGeneratedImage(data.url);
+        setIsGhiblify(true);
+
+        // Post message to parent frame
+        postMessageToParent("imageGenerated", {
+          imageUrl: data.url,
+          isGhiblify: true,
+        });
+      } else {
+        // Handle regular image generation
+        const response = await fetch("/api/agent", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            command: prompt,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Error: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log("Generation response:", data);
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        setGeneratedImage(data.resultUrl);
+        setGroveUrl(data.groveUrl || null);
+
+        // Check if this is a mantleify image
+        if (
+          prompt.toLowerCase().includes("mantleify") ||
+          (data.overlayMode && data.overlayMode.toLowerCase() === "mantleify")
+        ) {
+          setIsMantleify(true);
+        }
+
+        // Check if this is a scrollify image
+        if (
+          prompt.toLowerCase().includes("scrollify") ||
+          (data.overlayMode && data.overlayMode.toLowerCase() === "scrollify")
+        ) {
+          setIsScrollify(true);
+        }
+
+        // Check if this is a Base NFT-compatible overlay
+        const baseOverlays = [
+          "higherify",
+          "baseify",
+          "higherise",
+          "dickbuttify",
+        ];
+        for (const overlay of baseOverlays) {
+          if (
+            prompt.toLowerCase().includes(overlay) ||
+            (data.overlayMode && data.overlayMode.toLowerCase() === overlay)
+          ) {
+            setBaseOverlayType(overlay);
+            break;
+          }
+        }
+
+        // Post message to parent frame
+        postMessageToParent("imageGenerated", {
+          imageUrl: data.resultUrl,
+          groveUrl: data.groveUrl,
+        });
+      }
     } catch (err) {
       console.error("Error generating image:", err);
       setError(err instanceof Error ? err.message : "Failed to generate image");
     } finally {
       setIsGenerating(false);
     }
-  }, [prompt]);
+  }, [prompt, contextData]);
 
   const handleOpenGroveUrl = useCallback(() => {
     if (groveUrl) {
@@ -291,6 +345,65 @@ export default function FrameContent() {
     }
   };
 
+  const handleImageSelect = useCallback((file: File) => {
+    setUploadedImage(file);
+    const url = URL.createObjectURL(file);
+    setUploadedImageUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, []);
+
+  const handleGhiblify = useCallback(async () => {
+    if (!uploadedImage) return;
+
+    setIsGenerating(true);
+    setError(null);
+    setGeneratedImage(null);
+    setGroveUrl(null);
+    setMintResult(null);
+    setIsGhiblify(true);
+
+    try {
+      // Create form data with the image
+      const formData = new FormData();
+      formData.append("image", uploadedImage);
+
+      // Call the replicate endpoint
+      const response = await fetch("/api/replicate", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      if (data.url) {
+        setGeneratedImage(data.url);
+        // Post message to parent frame
+        postMessageToParent("imageGenerated", {
+          imageUrl: data.url,
+          isGhiblify: true,
+        });
+      } else {
+        throw new Error("No transformed image URL received");
+      }
+    } catch (error) {
+      console.error("Error transforming image:", error);
+      setError(
+        error instanceof Error ? error.message : "Failed to transform image"
+      );
+      setIsGhiblify(false);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [uploadedImage]);
+
   if (!isSDKLoaded) {
     return <div className="p-4 text-center">Loading frame...</div>;
   }
@@ -303,12 +416,23 @@ export default function FrameContent() {
 
       {!generatedImage ? (
         <>
-          <PromptInput
-            prompt={prompt}
-            setPrompt={setPrompt}
-            isGenerating={isGenerating}
-            handleGenerate={handleGenerate}
-          />
+          <div className="flex flex-col gap-4">
+            <ImageUpload
+              onImageSelect={handleImageSelect}
+              onGhiblify={handleGhiblify}
+              selectedImage={uploadedImageUrl}
+              isTransforming={isGenerating && isGhiblify}
+            />
+
+            <div className="text-center text-sm text-gray-400">- or -</div>
+
+            <PromptInput
+              prompt={prompt}
+              setPrompt={setPrompt}
+              isGenerating={isGenerating}
+              handleGenerate={handleGenerate}
+            />
+          </div>
 
           {error && (
             <div className="mt-4 p-2 bg-red-900 text-white rounded-md text-sm">

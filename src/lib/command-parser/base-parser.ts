@@ -11,9 +11,9 @@ export class BaseCommandParser {
   protected URL_PATTERN = /https?:\/\/[^\s]+/;
 
   protected OVERLAY_PATTERNS = [
-    /apply\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)/i,
-    /use\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)/i,
-    /with\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)/i,
+    /apply\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify|ghiblify)/i,
+    /use\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify|ghiblify)/i,
+    /with\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify|ghiblify)/i,
   ];
 
   protected POSITION_PATTERNS = [
@@ -56,13 +56,13 @@ export class BaseCommandParser {
     /this\s+picture/i,
     /this\s+cast/i,
     /this\s+one/i,
-    /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)\s+this/i,
-    /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)\.?\s*$/i,
-    /add\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)\s+to\s+this/i,
-    /put\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)\s+on\s+this/i,
-    /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)\s+it/i,
-    /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)\s+the\s+image/i,
-    /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)/i,
+    /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify|ghiblify)\s+this/i,
+    /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify|ghiblify)\.?\s*$/i,
+    /add\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify|ghiblify)\s+to\s+this/i,
+    /put\s+(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify|ghiblify)\s+on\s+this/i,
+    /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify|ghiblify)\s+it/i,
+    /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify|ghiblify)\s+the\s+image/i,
+    /^(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify|ghiblify)/i,
   ];
 
   protected CONTROL_INSTRUCTION_PATTERNS = [
@@ -159,6 +159,7 @@ export class BaseCommandParser {
     "baseify",
     "clankerify",
     "mantleify",
+    "ghiblify",
   ];
 
   /**
@@ -484,7 +485,7 @@ export class BaseCommandParser {
     // Remove overlay mode terms
     cleanedText = cleanedText
       .replace(
-        /\b(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify)\b/gi,
+        /\b(higherify|degenify|scrollify|lensify|higherise|dickbuttify|nikefy|nounify|baseify|clankerify|mantleify|ghiblify)\b/gi,
         ""
       )
       .replace(/\b(overlay|style|effect)\b/gi, "");

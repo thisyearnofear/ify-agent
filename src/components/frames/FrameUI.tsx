@@ -276,3 +276,96 @@ export const PromptInput = ({
     </div>
   );
 };
+
+interface ImageUploadProps {
+  onImageSelect: (file: File) => void;
+  onGhiblify: () => void;
+  selectedImage: string | null;
+  isTransforming: boolean;
+}
+
+/**
+ * Component for uploading and previewing images
+ */
+export const ImageUpload = ({
+  onImageSelect,
+  onGhiblify,
+  selectedImage,
+  isTransforming,
+}: ImageUploadProps) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onImageSelect(file);
+    }
+  };
+
+  return (
+    <div className="w-full">
+      {!selectedImage ? (
+        <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-800 hover:bg-gray-700">
+          <div className="flex flex-col items-center justify-center pt-5 pb-6">
+            <svg
+              className="w-8 h-8 mb-3 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+              />
+            </svg>
+            <p className="mb-2 text-sm text-gray-400">
+              <span className="font-semibold">Click to upload</span> or drag and
+              drop
+            </p>
+            <p className="text-xs text-gray-500">PNG, JPG or GIF</p>
+          </div>
+          <input
+            type="file"
+            className="hidden"
+            accept="image/*"
+            onChange={handleFileChange}
+          />
+        </label>
+      ) : (
+        <div className="relative w-full">
+          <div className="relative w-full aspect-square mb-4">
+            <Image
+              src={selectedImage}
+              alt="Selected image"
+              fill
+              className="object-contain rounded-lg"
+              priority
+            />
+          </div>
+          <button
+            onClick={onGhiblify}
+            disabled={isTransforming}
+            className={`w-full py-3 px-4 rounded-lg text-white font-medium ${
+              isTransforming
+                ? "bg-pink-800 cursor-wait"
+                : "bg-pink-600 hover:bg-pink-700"
+            } transition-colors`}
+          >
+            {isTransforming ? (
+              <div className="flex items-center justify-center gap-2">
+                <span>Transforming</span>
+                <span className="animate-pulse">✨</span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-2">
+                <span>Ghiblify</span>
+                <span>✨</span>
+              </div>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};

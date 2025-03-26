@@ -190,7 +190,8 @@ export async function POST(request: Request): Promise<Response> {
           body.parameters.overlayMode === "nounify" ||
           body.parameters.overlayMode === "baseify" ||
           body.parameters.overlayMode === "clankerify" ||
-          body.parameters.overlayMode === "mantleify"
+          body.parameters.overlayMode === "mantleify" ||
+          body.parameters.overlayMode === "ghiblify"
         ) {
           parsedCommand.overlayMode = body.parameters.overlayMode;
         } else {
@@ -200,7 +201,7 @@ export async function POST(request: Request): Promise<Response> {
           });
           return NextResponse.json(
             {
-              error: `Invalid overlay mode: ${body.parameters.overlayMode}. Supported modes are: degenify, higherify, scrollify, lensify, higherise, dickbuttify, nikefy, nounify, baseify, clankerify, mantleify.`,
+              error: `Invalid overlay mode: ${body.parameters.overlayMode}. Supported modes are: degenify, higherify, scrollify, lensify, higherise, dickbuttify, nikefy, nounify, baseify, clankerify, mantleify, ghiblify.`,
             },
             { status: 400, headers: responseHeaders }
           );

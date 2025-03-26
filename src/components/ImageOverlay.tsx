@@ -26,7 +26,8 @@ export type OverlayMode =
   | "nounify"
   | "baseify"
   | "clankerify"
-  | "mantleify";
+  | "mantleify"
+  | "ghiblify";
 export type Stage = "initial" | "style" | "adjust";
 
 export default function ImageOverlay() {
@@ -36,6 +37,7 @@ export default function ImageOverlay() {
   const [overlayPreviewUrl, setOverlayPreviewUrl] = useState<string>("");
   const [combinedPreviewUrl, setCombinedPreviewUrl] = useState<string>("");
   const [mode, setMode] = useState<OverlayMode>("wowowify");
+  const [isTransforming, setIsTransforming] = useState(false);
   const [controls, setControls] = useState<OverlayControls>({
     scale: 1,
     x: 0,
@@ -62,6 +64,63 @@ export default function ImageOverlay() {
 
   const loadPresetOverlay = async (presetMode: OverlayMode) => {
     setMode(presetMode);
+
+    // For ghiblify, we don't need a preset overlay image
+    if (presetMode === "ghiblify") {
+      if (!baseImage || !basePreviewUrl) {
+        alert("Please upload an image first");
+        return;
+      }
+
+      setIsTransforming(true);
+      setStage("adjust");
+
+      try {
+        // Convert base image to blob
+        const imageBlob = await fetch(basePreviewUrl).then((r) => r.blob());
+        const formData = new FormData();
+        formData.append("image", imageBlob, "image.png");
+
+        const response = await fetch("/api/replicate", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to transform image: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+
+        if (result.error) {
+          throw new Error(result.error);
+        }
+
+        if (result.url) {
+          // Fetch the transformed image and create a local URL
+          const transformedImageResponse = await fetch(result.url);
+          const transformedImageBlob = await transformedImageResponse.blob();
+          const transformedImageUrl = URL.createObjectURL(transformedImageBlob);
+          setCombinedPreviewUrl(transformedImageUrl);
+        } else {
+          throw new Error("No transformed image URL received");
+        }
+      } catch (error) {
+        console.error("Error transforming image:", error);
+        alert(
+          error instanceof Error
+            ? error.message
+            : "Failed to transform image. Please try again."
+        );
+        // Reset state on error
+        setMode("wowowify");
+        setStage("style");
+      } finally {
+        setIsTransforming(false);
+      }
+      return;
+    }
+
     const presetPath =
       presetMode === "degenify"
         ? "/degen/degenify.png"
@@ -302,6 +361,8 @@ export default function ImageOverlay() {
               ? "img overlay tool"
               : stage === "style"
               ? "choose style"
+              : mode === "ghiblify"
+              ? "transforming image"
               : "adjust overlay"}
           </label>
         </div>
@@ -320,15 +381,25 @@ export default function ImageOverlay() {
             <div className="flex-1">
               <div className="relative group">
                 <div className="w-full h-[70vh] relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={combinedPreviewUrl || basePreviewUrl}
-                    alt={
-                      combinedPreviewUrl ? "Combined preview" : "Base preview"
-                    }
-                    className="w-full h-full object-contain border rounded-lg shadow-lg"
-                  />
-                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all rounded-lg" />
+                  {isTransforming ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-50 rounded-lg">
+                      <div className="text-center">
+                        <div className="mb-2">✨</div>
+                        <div className="text-sm text-gray-600">
+                          Transforming your image...
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={combinedPreviewUrl || basePreviewUrl}
+                      alt={
+                        combinedPreviewUrl ? "Combined preview" : "Base preview"
+                      }
+                      className="w-full h-full object-contain border rounded-lg shadow-lg"
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -354,6 +425,7 @@ export default function ImageOverlay() {
                   updateControl={updateControl}
                   onDownload={handleDownload}
                   onBack={handleBack}
+                  showControls={mode !== "ghiblify"}
                 />
               )}
             </div>

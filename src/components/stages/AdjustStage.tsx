@@ -11,6 +11,7 @@ interface AdjustStageProps {
   updateControl: (key: "scale" | "x" | "y", value: number) => void;
   onDownload: () => void;
   onBack: () => void;
+  showControls?: boolean;
 }
 
 export const AdjustStage = ({
@@ -19,61 +20,64 @@ export const AdjustStage = ({
   updateControl,
   onDownload,
   onBack,
+  showControls = true,
 }: AdjustStageProps) => {
   return (
     <div className="animate-fadeIn">
-      <div
-        className={`mb-4 md:mb-6 ${
-          mode === "degenify"
-            ? "text-violet-700"
-            : mode === "higherify"
-            ? "text-emerald-700"
-            : mode === "scrollify"
-            ? "text-amber-700"
-            : "text-gray-700"
-        }`}
-      >
-        <div className="flex flex-row md:flex-col gap-4">
-          <div className="flex-1 flex flex-col gap-1">
-            <input
-              type="range"
-              min="0.1"
-              max="5"
-              step="0.1"
-              value={controls.scale}
-              onChange={(e) =>
-                updateControl("scale", parseFloat(e.target.value))
-              }
-              className="w-full accent-current"
-            />
-            <span className="text-xs text-center">
-              Scale: {controls.scale.toFixed(1)}x
-            </span>
-          </div>
-          <div className="flex-1 flex flex-col gap-1">
-            <input
-              type="range"
-              min="-500"
-              max="500"
-              value={controls.x}
-              onChange={(e) => updateControl("x", parseInt(e.target.value))}
-              className="w-full accent-current"
-            />
-            <span className="text-xs text-center">X: {controls.x}px</span>
-          </div>
-          <div className="flex-1 flex flex-col gap-1">
-            <input
-              type="range"
-              min="-500"
-              max="500"
-              value={controls.y}
-              onChange={(e) => updateControl("y", parseInt(e.target.value))}
-              className="w-full accent-current"
-            />
-            <span className="text-xs text-center">Y: {controls.y}px</span>
+      {showControls && (
+        <div
+          className={`mb-4 md:mb-6 ${
+            mode === "degenify"
+              ? "text-violet-700"
+              : mode === "higherify"
+              ? "text-emerald-700"
+              : mode === "scrollify"
+              ? "text-amber-700"
+              : "text-gray-700"
+          }`}
+        >
+          <div className="flex flex-row md:flex-col gap-4">
+            <div className="flex-1 flex flex-col gap-1">
+              <input
+                type="range"
+                min="0.1"
+                max="5"
+                step="0.1"
+                value={controls.scale}
+                onChange={(e) =>
+                  updateControl("scale", parseFloat(e.target.value))
+                }
+                className="w-full accent-current"
+              />
+              <span className="text-xs text-center">
+                Scale: {controls.scale.toFixed(1)}x
+              </span>
+            </div>
+            <div className="flex-1 flex flex-col gap-1">
+              <input
+                type="range"
+                min="-500"
+                max="500"
+                value={controls.x}
+                onChange={(e) => updateControl("x", parseInt(e.target.value))}
+                className="w-full accent-current"
+              />
+              <span className="text-xs text-center">X: {controls.x}px</span>
+            </div>
+            <div className="flex-1 flex flex-col gap-1">
+              <input
+                type="range"
+                min="-500"
+                max="500"
+                value={controls.y}
+                onChange={(e) => updateControl("y", parseInt(e.target.value))}
+                className="w-full accent-current"
+              />
+              <span className="text-xs text-center">Y: {controls.y}px</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="flex gap-3 justify-center">
         <button
@@ -85,6 +89,8 @@ export const AdjustStage = ({
               ? "bg-emerald-600 hover:bg-emerald-700"
               : mode === "scrollify"
               ? "bg-amber-600 hover:bg-amber-700"
+              : mode === "ghiblify"
+              ? "bg-pink-600 hover:bg-pink-700"
               : "bg-gray-600 hover:bg-gray-700"
           } text-white`}
         >

@@ -11,6 +11,7 @@ import {
 import { parseCommand } from "@/lib/command-parser/index";
 import { InterfaceType } from "@/lib/command-parser/index";
 import { storeImageUrl } from "@/lib/image-history";
+import { ghibliService } from "./ghibli-service";
 
 // For serverless environment, we'll use these URLs for overlays
 const OVERLAY_URLS = {
@@ -171,6 +172,8 @@ export class ImageService {
             defaultPrompt = "a meme-worthy background";
           } else if (parsedCommand.overlayMode === "mantleify") {
             defaultPrompt = "a digital landscape with mountains";
+          } else if (parsedCommand.overlayMode === "ghiblify") {
+            defaultPrompt = "a serene natural landscape";
           }
 
           parsedCommand.prompt = defaultPrompt;
@@ -262,13 +265,14 @@ export class ImageService {
         parsedCommand.overlayMode !== "nounify" &&
         parsedCommand.overlayMode !== "baseify" &&
         parsedCommand.overlayMode !== "clankerify" &&
-        parsedCommand.overlayMode !== "mantleify"
+        parsedCommand.overlayMode !== "mantleify" &&
+        parsedCommand.overlayMode !== "ghiblify"
       ) {
         logger.warn("Invalid overlay mode", {
           overlayMode: parsedCommand.overlayMode,
         });
         throw new Error(
-          `Invalid overlay mode: ${parsedCommand.overlayMode}. Supported modes are: degenify, higherify, scrollify, lensify, higherise, dickbuttify, nikefy, nounify, baseify, clankerify, mantleify.`
+          `Invalid overlay mode: ${parsedCommand.overlayMode}. Supported modes are: degenify, higherify, scrollify, lensify, higherise, dickbuttify, nikefy, nounify, baseify, clankerify, mantleify, ghiblify.`
         );
       }
 
@@ -279,6 +283,32 @@ export class ImageService {
         useParentImage: parsedCommand.useParentImage,
         overlayMode: parsedCommand.overlayMode,
       });
+
+      // If this is a ghiblify request, handle it differently
+      if (parsedCommand.overlayMode === "ghiblify") {
+        if (!parsedCommand.baseImageUrl) {
+          throw new Error("Base image URL is required for ghiblify mode");
+        }
+
+        logger.info("Processing ghiblify request", {
+          baseImageUrl: parsedCommand.baseImageUrl,
+        });
+
+        const result = await ghibliService.processImage(
+          parsedCommand.baseImageUrl,
+          walletAddressForOverlay
+        );
+
+        // Store the result URL in image history
+        await storeImageUrl(result.resultUrl);
+
+        return {
+          id: uuidv4(),
+          status: "completed",
+          resultUrl: result.resultUrl,
+          groveUrl: result.groveUrl,
+        };
+      }
 
       // Step 1: Generate or get base image
       let baseImageBuffer: Buffer;
