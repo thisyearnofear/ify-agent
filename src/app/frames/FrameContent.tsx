@@ -404,6 +404,12 @@ export default function FrameContent() {
     }
   }, [uploadedImage]);
 
+  const handleClear = useCallback(() => {
+    setUploadedImage(null);
+    setUploadedImageUrl(null);
+    setError(null);
+  }, []);
+
   if (!isSDKLoaded) {
     return <div className="p-4 text-center">Loading frame...</div>;
   }
@@ -420,6 +426,7 @@ export default function FrameContent() {
             <ImageUpload
               onImageSelect={handleImageSelect}
               onGhiblify={handleGhiblify}
+              onClear={handleClear}
               selectedImage={uploadedImageUrl}
               isTransforming={isGenerating && isGhiblify}
             />

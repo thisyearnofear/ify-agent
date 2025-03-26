@@ -280,6 +280,7 @@ export const PromptInput = ({
 interface ImageUploadProps {
   onImageSelect: (file: File) => void;
   onGhiblify: () => void;
+  onClear: () => void;
   selectedImage: string | null;
   isTransforming: boolean;
 }
@@ -290,6 +291,7 @@ interface ImageUploadProps {
 export const ImageUpload = ({
   onImageSelect,
   onGhiblify,
+  onClear,
   selectedImage,
   isTransforming,
 }: ImageUploadProps) => {
@@ -343,27 +345,39 @@ export const ImageUpload = ({
               priority
             />
           </div>
-          <button
-            onClick={onGhiblify}
-            disabled={isTransforming}
-            className={`w-full py-3 px-4 rounded-lg text-white font-medium ${
-              isTransforming
-                ? "bg-pink-800 cursor-wait"
-                : "bg-pink-600 hover:bg-pink-700"
-            } transition-colors`}
-          >
-            {isTransforming ? (
+          <div className="flex gap-2">
+            <button
+              onClick={onGhiblify}
+              disabled={isTransforming}
+              className={`flex-1 py-3 px-4 rounded-lg text-white font-medium ${
+                isTransforming
+                  ? "bg-pink-800 cursor-wait"
+                  : "bg-pink-600 hover:bg-pink-700"
+              } transition-colors`}
+            >
+              {isTransforming ? (
+                <div className="flex items-center justify-center gap-2">
+                  <span>Transforming</span>
+                  <span className="animate-pulse">✨</span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2">
+                  <span>Ghiblify</span>
+                  <span>✨</span>
+                </div>
+              )}
+            </button>
+            <button
+              onClick={onClear}
+              disabled={isTransforming}
+              className="py-3 px-4 rounded-lg text-white font-medium bg-gray-600 hover:bg-gray-700 transition-colors"
+            >
               <div className="flex items-center justify-center gap-2">
-                <span>Transforming</span>
-                <span className="animate-pulse">✨</span>
+                <span>Clear</span>
+                <span>🗑️</span>
               </div>
-            ) : (
-              <div className="flex items-center justify-center gap-2">
-                <span>Ghiblify</span>
-                <span>✨</span>
-              </div>
-            )}
-          </button>
+            </button>
+          </div>
         </div>
       )}
     </div>
