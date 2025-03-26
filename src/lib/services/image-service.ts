@@ -299,11 +299,19 @@ export class ImageService {
           walletAddressForOverlay
         );
 
+        // Generate a unique ID for this result
+        const resultId = uuidv4();
+
         // Store the result URL in image history
-        await storeImageUrl(result.resultUrl);
+        await storeImageUrl(
+          resultId,
+          result.resultUrl,
+          undefined,
+          result.groveUrl
+        );
 
         return {
-          id: uuidv4(),
+          id: resultId,
           status: "completed",
           resultUrl: result.resultUrl,
           groveUrl: result.groveUrl,
