@@ -40,25 +40,62 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    // Handle FormData
-    const formData = await request.formData();
-    const imageFile = formData.get("image") as File;
+    // Handle both FormData and JSON requests
+    let dataUrl: string;
+    const contentType = request.headers.get("content-type");
 
-    if (!imageFile) {
-      return NextResponse.json(
-        { error: "Image file is required" },
-        { status: 400, headers: responseHeaders }
-      );
+    if (contentType?.includes("multipart/form-data")) {
+      // Handle FormData
+      const formData = await request.formData();
+      const imageFile = formData.get("image") as File;
+
+      if (!imageFile) {
+        return NextResponse.json(
+          { error: "Image file is required" },
+          { status: 400, headers: responseHeaders }
+        );
+      }
+
+      // Convert the image file to base64
+      const buffer = await imageFile.arrayBuffer();
+      const base64Image = Buffer.from(buffer).toString("base64");
+      dataUrl = `data:${imageFile.type};base64,${base64Image}`;
+    } else {
+      // Handle JSON request
+      const body = await request.json();
+      if (!body.imageUrl) {
+        return NextResponse.json(
+          { error: "Image URL is required" },
+          { status: 400, headers: responseHeaders }
+        );
+      }
+
+      // Download the image and convert to base64
+      try {
+        const imageResponse = await fetch(body.imageUrl);
+        if (!imageResponse.ok) {
+          throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
+        }
+        const buffer = await imageResponse.arrayBuffer();
+        const base64Image = Buffer.from(buffer).toString("base64");
+        const contentType =
+          imageResponse.headers.get("content-type") || "image/jpeg";
+        dataUrl = `data:${contentType};base64,${base64Image}`;
+      } catch (error) {
+        logger.error("Error downloading image:", {
+          error: error instanceof Error ? error.message : "Unknown error",
+          url: body.imageUrl,
+        });
+        return NextResponse.json(
+          { error: "Failed to download image" },
+          { status: 400, headers: responseHeaders }
+        );
+      }
     }
-
-    // Convert the image file to base64
-    const buffer = await imageFile.arrayBuffer();
-    const base64Image = Buffer.from(buffer).toString("base64");
-    const dataUrl = `data:${imageFile.type};base64,${base64Image}`;
 
     logger.info("Processing image with Replicate", {
       ip,
-      imageType: imageFile.type,
+      contentType,
     });
 
     const output = await replicate.run(
