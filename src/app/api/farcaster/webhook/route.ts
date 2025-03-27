@@ -620,6 +620,58 @@ export async function POST(request: Request) {
       // Get the image service for Farcaster interface
       const imageService = ServiceFactory.getServiceForInterface("farcaster");
 
+      // Special handling for ghiblify command
+      if (commandText.toLowerCase().includes("ghiblify")) {
+        // Set the base image URL in the parsed command if we have one
+        if (imageUrlToUse && parsedCommand.useParentImage) {
+          parsedCommand.baseImageUrl = imageUrlToUse;
+          logger.info("Setting base image URL from cast for ghiblify", {
+            imageUrlToUse,
+          });
+        }
+
+        // Send initial response
+        await replyToCast(
+          castData.hash,
+          "Processing your image in Ghibli style... This may take a minute or two. I'll reply again when it's ready! 🎨"
+        );
+
+        // Start processing in background
+        (async () => {
+          try {
+            const result = await imageService.processCommand(parsedCommand);
+            if (result.status === "completed" && result.resultUrl) {
+              await replyToCast(
+                castData.hash,
+                "Here's your Ghibli-style image! ✨",
+                result.resultUrl
+              );
+            } else {
+              throw new Error(result.error || "Failed to process image");
+            }
+          } catch (error) {
+            logger.error("Error processing ghiblify command", {
+              error: error instanceof Error ? error.message : String(error),
+              command: commandText,
+            });
+            await replyToCast(
+              castData.hash,
+              formatErrorMessage(
+                error instanceof Error
+                  ? error.message
+                  : "Failed to process image"
+              )
+            );
+          }
+        })();
+
+        return NextResponse.json({
+          status: "success",
+          reason: "Processing ghiblify command asynchronously",
+        });
+      }
+
+      // Process other commands synchronously as before
       // Set the base image URL in the parsed command if we have one
       if (imageUrlToUse && parsedCommand.useParentImage) {
         parsedCommand.baseImageUrl = imageUrlToUse;
