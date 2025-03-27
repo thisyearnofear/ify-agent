@@ -74,7 +74,6 @@ export async function POST(request: Request): Promise<Response> {
       try {
         const imageResponse = await fetch(body.imageUrl, {
           headers: {
-            // Add headers that might be needed for certain image hosts
             "User-Agent": "Mozilla/5.0 (compatible; WOWOWIFYAgent/1.0)",
             Accept: "image/*, */*",
           },
@@ -101,34 +100,38 @@ export async function POST(request: Request): Promise<Response> {
       }
     }
 
-    logger.info("Processing image with Replicate", {
+    logger.info("Starting Replicate prediction", {
       ip,
       contentType,
     });
 
-    const output = await replicate.run(
-      "grabielairu/ghibli:4b82bb7dbb3b153882a0c34d7f2cbc4f7012ea7eaddb4f65c257a3403c9b3253",
+    // Create prediction
+    const prediction = await replicate.predictions.create({
+      version:
+        "4b82bb7dbb3b153882a0c34d7f2cbc4f7012ea7eaddb4f65c257a3403c9b3253",
+      input: {
+        image: dataUrl,
+        prompt: "Studio Ghibli style artwork",
+        prompt_strength: 0.66,
+        guidance_scale: 7.5,
+        num_inference_steps: 50,
+        lora_scale: 0.7,
+      },
+    });
+
+    logger.info("Created Replicate prediction", {
+      id: prediction.id,
+      status: prediction.status,
+    });
+
+    // Return the prediction ID immediately
+    return NextResponse.json(
       {
-        input: {
-          image: dataUrl,
-          prompt: "Studio Ghibli style artwork",
-          prompt_strength: 0.66,
-          guidance_scale: 7.5,
-          num_inference_steps: 50,
-          lora_scale: 0.7,
-        },
-      }
+        id: prediction.id,
+        status: prediction.status,
+      },
+      { status: 202, headers: responseHeaders }
     );
-
-    // The model returns an array with one image
-    if (Array.isArray(output) && output.length > 0) {
-      return NextResponse.json(
-        { url: output[0] },
-        { status: 200, headers: responseHeaders }
-      );
-    }
-
-    throw new Error("No output received from Replicate API");
   } catch (error) {
     logger.error("Error processing image with Replicate:", {
       error: error instanceof Error ? error.message : "Unknown error",
@@ -138,6 +141,52 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json(
       {
         error: "Failed to process image with Ghibli style",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// Add GET endpoint to check prediction status
+export async function GET(request: Request): Promise<Response> {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Prediction ID is required" },
+        { status: 400 }
+      );
+    }
+
+    const prediction = await replicate.predictions.get(id);
+
+    if (prediction.error) {
+      return NextResponse.json({ error: prediction.error }, { status: 400 });
+    }
+
+    // If the prediction is complete, return the output
+    if (prediction.status === "succeeded") {
+      return NextResponse.json({
+        status: prediction.status,
+        url: prediction.output?.[0],
+      });
+    }
+
+    // Otherwise return the current status
+    return NextResponse.json({
+      status: prediction.status,
+    });
+  } catch (error) {
+    logger.error("Error checking prediction status:", {
+      error: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
+    return NextResponse.json(
+      {
+        error: "Failed to check prediction status",
       },
       { status: 500 }
     );

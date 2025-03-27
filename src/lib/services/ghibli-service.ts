@@ -4,6 +4,8 @@ import { uploadToGrove } from "../grove-storage";
 
 export class GhibliService {
   private baseUrl: string;
+  private maxRetries = 60; // Maximum number of retries (10 minutes with 10-second intervals)
+  private retryInterval = 10000; // 10 seconds between retries
 
   constructor() {
     // Use environment variable for the base URL, fallback to localhost for development
@@ -13,6 +15,49 @@ export class GhibliService {
     logger.info("Initialized GhibliService", {
       baseUrl: this.baseUrl,
     });
+  }
+
+  private async waitForPrediction(predictionId: string): Promise<string> {
+    let retries = 0;
+
+    while (retries < this.maxRetries) {
+      try {
+        const response = await fetch(
+          `${this.baseUrl}/api/replicate?id=${predictionId}`
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to check prediction: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        if (data.status === "succeeded" && data.url) {
+          return data.url;
+        }
+
+        if (data.status === "failed") {
+          throw new Error("Image processing failed");
+        }
+
+        // If still processing, wait and retry
+        await new Promise((resolve) => setTimeout(resolve, this.retryInterval));
+        retries++;
+      } catch (error) {
+        logger.error("Error checking prediction status", {
+          error: error instanceof Error ? error.message : "Unknown error",
+          predictionId,
+          retry: retries,
+        });
+        throw error;
+      }
+    }
+
+    throw new Error("Timeout waiting for image processing");
   }
 
   async processImage(
@@ -33,7 +78,7 @@ export class GhibliService {
         baseUrl: this.baseUrl,
       });
 
-      // Process the image using our backend API with absolute URL
+      // Start the prediction
       const response = await fetch(`${this.baseUrl}/api/replicate`, {
         method: "POST",
         headers: {
@@ -48,22 +93,28 @@ export class GhibliService {
         const error = await response
           .json()
           .catch(() => ({ error: response.statusText }));
-        logger.error("Failed to process image", {
+        logger.error("Failed to start prediction", {
           status: response.status,
           statusText: response.statusText,
           error: error.error || "Unknown error",
         });
         throw new Error(
-          error.error || `Failed to process image: ${response.statusText}`
+          error.error || `Failed to start prediction: ${response.statusText}`
         );
       }
 
-      const data = await response.json();
-      if (!data.url) {
-        throw new Error("No URL in response from Replicate API");
+      const { id: predictionId, status } = await response.json();
+      if (!predictionId) {
+        throw new Error("No prediction ID received");
       }
 
-      const resultUrl = data.url;
+      logger.info("Started prediction", {
+        predictionId,
+        status,
+      });
+
+      // Wait for the prediction to complete
+      const resultUrl = await this.waitForPrediction(predictionId);
 
       // Download the processed image for Grove upload
       const processedImage = await downloadImage(resultUrl);
