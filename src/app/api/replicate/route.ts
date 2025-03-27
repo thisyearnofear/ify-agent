@@ -72,10 +72,18 @@ export async function POST(request: Request): Promise<Response> {
 
       // Download the image and convert to base64
       try {
-        const imageResponse = await fetch(body.imageUrl);
+        const imageResponse = await fetch(body.imageUrl, {
+          headers: {
+            // Add headers that might be needed for certain image hosts
+            "User-Agent": "Mozilla/5.0 (compatible; WOWOWIFYAgent/1.0)",
+            Accept: "image/*, */*",
+          },
+        });
+
         if (!imageResponse.ok) {
           throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
         }
+
         const buffer = await imageResponse.arrayBuffer();
         const base64Image = Buffer.from(buffer).toString("base64");
         const contentType =
