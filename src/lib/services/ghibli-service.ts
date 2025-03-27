@@ -3,6 +3,18 @@ import { downloadImage } from "../image-processor";
 import { uploadToGrove } from "../grove-storage";
 
 export class GhibliService {
+  private baseUrl: string;
+
+  constructor() {
+    // Use environment variable for the base URL, fallback to localhost for development
+    this.baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+    // Log the base URL for debugging
+    logger.info("Initialized GhibliService", {
+      baseUrl: this.baseUrl,
+    });
+  }
+
   async processImage(
     imageUrl: string,
     walletAddress?: string
@@ -18,10 +30,11 @@ export class GhibliService {
       logger.info("Processing image with Ghibli style", {
         originalUrl: imageUrl.substring(0, 100),
         finalUrl: finalImageUrl.substring(0, 100),
+        baseUrl: this.baseUrl,
       });
 
-      // Process the image using our backend API
-      const response = await fetch("/api/replicate", {
+      // Process the image using our backend API with absolute URL
+      const response = await fetch(`${this.baseUrl}/api/replicate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -32,11 +45,25 @@ export class GhibliService {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to process image");
+        const error = await response
+          .json()
+          .catch(() => ({ error: response.statusText }));
+        logger.error("Failed to process image", {
+          status: response.status,
+          statusText: response.statusText,
+          error: error.error || "Unknown error",
+        });
+        throw new Error(
+          error.error || `Failed to process image: ${response.statusText}`
+        );
       }
 
-      const { url: resultUrl } = await response.json();
+      const data = await response.json();
+      if (!data.url) {
+        throw new Error("No URL in response from Replicate API");
+      }
+
+      const resultUrl = data.url;
 
       // Download the processed image for Grove upload
       const processedImage = await downloadImage(resultUrl);
@@ -55,7 +82,9 @@ export class GhibliService {
     } catch (error) {
       logger.error("Error in GhibliService.processImage", {
         error: error instanceof Error ? error.message : "Unknown error",
-        imageUrl,
+        stack: error instanceof Error ? error.stack : undefined,
+        imageUrl: imageUrl.substring(0, 100),
+        baseUrl: this.baseUrl,
       });
       throw error;
     }
